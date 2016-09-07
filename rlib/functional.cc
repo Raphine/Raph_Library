@@ -28,7 +28,7 @@ void Functional::WakeupFunction() {
   if (!_func.CanExecute()) {
     return;
   }
-  Locker locker(_lock);
+  Locker locker(GetLock());
   if (_state == FunctionState::kFunctioning) {
     return;
   }
@@ -42,7 +42,7 @@ void Functional::Handle(Task *t, void *p) {
     that->_func.Execute(t);
   }
   {
-    Locker locker(that->_lock);
+    Locker locker(that->GetLock());
     if (!that->ShouldFunc()) {
       that->_state = FunctionState::kNotFunctioning;
       return;
@@ -55,4 +55,12 @@ void Functional::SetFunction(int cpuid, const GenericFunction2<Task> &func) {
   kassert(!_func.CanExecute());
   _cpuid = cpuid;
   _func.Copy(func);
+}
+
+SpinLockInterface &Functional::GetLock() {
+  return _lock;
+}
+
+SpinLockInterface &IntFunctional::GetLock() {
+  return _lock;
 }
