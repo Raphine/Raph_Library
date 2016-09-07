@@ -47,10 +47,17 @@ class Functional {
  private:
   static void Handle(Task *, void *p);
   FunctionBase2<Task> _func;
+  virtual SpinLockInterface &GetLock();
   Task _task;
   int _cpuid = 0;
   SpinLock _lock;
   FunctionState _state = FunctionState::kNotFunctioning;
+};
+
+class IntFunctional : public Functional {
+ private:
+  SpinLockInterface &GetLock();
+  IntSpinLock _lock;
 };
 
 #endif // __RAPH_KERNEL_FUNCTIONAL_H__

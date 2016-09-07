@@ -42,7 +42,7 @@ class RingBuffer {
   }
   // 満杯の時は何もせず、falseを返す
   bool Push(T data) {
-    Locker locker(_lock);
+    Locker locker(GetLock());
     int ntail = (_tail + 1) % S;
     if (ntail != _head) {
       _buffer[_tail] = data;
@@ -54,7 +54,7 @@ class RingBuffer {
   }
   // 空の時は何もせず、falseを返す
   bool Pop(T &data) {
-    Locker locker(_lock);
+    Locker locker(GetLock());
     if (_head != _tail) {
       data = _buffer[_head];
       _head = (_head + 1) % S;
@@ -64,19 +64,36 @@ class RingBuffer {
     }
   }
   bool IsFull() {
-    Locker locker(_lock);
+    Locker locker(GetLock());
     int ntail = (_tail + 1) % S;
     return (ntail == _head);
   }
   bool IsEmpty() {
-    Locker locker(_lock);
+    Locker locker(GetLock());
     return (_tail == _head);
   }
  private:
+  virtual SpinLockInterface &GetLock() {
+    return _lock;
+  }
   T _buffer[S];
   int _head;
   int _tail;
   SpinLock _lock;
+};
+
+template<class T, int S>
+  class IntRingBuffer : public RingBuffer<T, S> {
+ public:
+  IntRingBuffer() {
+  }
+  ~IntRingBuffer() {
+  }
+ private:
+  SpinLockInterface &GetLock() override {
+    return _lock;
+  }
+  IntSpinLock _lock;
 };
 
 template<class T, int S>
@@ -105,6 +122,34 @@ template<class T, int S>
     return !_buf.IsEmpty();
   }
   RingBuffer<T, S> _buf;
+};
+
+template<class T, int S>
+  class IntFunctionalRingBuffer final : public IntFunctional {
+ public:
+  IntFunctionalRingBuffer(){
+  }
+  ~IntFunctionalRingBuffer(){
+  }
+  bool Push(T data) {
+    bool flag = _buf.Push(data);
+    WakeupFunction();
+    return flag;
+  }
+  bool Pop(T &data) {
+    return _buf.Pop(data);
+  }
+  bool IsFull() {
+    return _buf.IsFull();
+  }
+  bool IsEmpty() {
+    return _buf.IsEmpty();
+  }
+ private:
+  virtual bool ShouldFunc() override {
+    return !_buf.IsEmpty();
+  }
+  IntRingBuffer<T, S> _buf; 
 };
 
 
