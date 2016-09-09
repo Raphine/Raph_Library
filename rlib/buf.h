@@ -76,7 +76,7 @@ class RingBuffer {
   T _buffer[S];
   int _head;
   int _tail;
-  SpinLock _lock;
+  IntSpinLock _lock;
 };
 
 template<class T, int S>

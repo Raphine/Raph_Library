@@ -24,6 +24,7 @@
 #define __RAPH_KERNEL_RAPHQUEUE_H__
 
 #include <functional.h>
+#include <spinlock.h>
 
 class Queue {
  public:
@@ -124,5 +125,116 @@ class FunctionalQueue2 final : public Functional {
   Queue2<T> _queue;
 };
 
+template <class T>
+void Queue2<T>::Push(T *data) {
+  Container *c = new Container;
+  c->data = data;
+  c->next = nullptr;
+  Locker locker(_lock);
+  kassert(_last->next == nullptr);
+  _last->next = c;
+  _last = c;
+}
+
+template<class T>
+bool Queue2<T>::Pop(T *&data) {
+  Container *c;
+  {
+    Locker locker(_lock);
+    if (IsEmpty()) {
+      return false;
+    }
+    c = _first.next;
+    kassert(c != nullptr);
+    _first.next = c->next;
+    if (_last == c) {
+      _last = &_first;
+    }
+  }
+  data = c->data;
+  delete c;
+  return true;
+}
+
+template<class T>
+class IntQueue {
+ public:
+  class Container {
+  private:
+    friend IntQueue<T>;
+    Container *next;
+    T *data;
+  };
+  IntQueue() {
+    _last = &_first;
+    _first.next = nullptr;
+  }
+  virtual ~IntQueue() {
+  }
+  void Push(T *data);
+  // 空の時はfalseが帰る
+  bool Pop(T *&data);
+  bool IsEmpty() {
+    return &_first == _last;
+  }
+ private:
+  Container _first;
+  Container *_last;
+  IntSpinLock _lock;
+};
+
+template <class T>
+class FunctionalIntQueue final : public Functional {
+ public:
+  FunctionalIntQueue() {
+  }
+  ~FunctionalIntQueue() {
+  }
+  void Push(T *data) {
+    _queue.Push(data);
+    WakeupFunction();
+  }
+  bool Pop(T *&data) {
+    return _queue.Pop(data);
+  }
+  bool IsEmpty() {
+    return _queue.IsEmpty();
+  }
+ private:
+  virtual bool ShouldFunc() override {
+    return !_queue.IsEmpty();
+  }
+  IntQueue<T> _queue;
+};
+
+template <class T>
+void IntQueue<T>::Push(T *data) {
+  Container *c = data;
+  c->next = nullptr;
+  c->data = data;
+  Locker locker(_lock);
+  kassert(_last->next == nullptr);
+  _last->next = c;
+  _last = c;
+}
+
+template<class T>
+bool IntQueue<T>::Pop(T *&data) {
+  Container *c;
+  {
+    Locker locker(_lock);
+    if (IsEmpty()) {
+      return false;
+    }
+    c = _first.next;
+    kassert(c != nullptr);
+    _first.next = c->next;
+    if (_last == c) {
+      _last = &_first;
+    }
+  }
+  data = c->data;
+  return true;
+}
 
 #endif // __RAPH_KERNEL_RAPHQUEUE_H__
