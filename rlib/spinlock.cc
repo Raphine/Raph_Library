@@ -88,9 +88,12 @@ void IntSpinLock::Unlock() {
 
 int IntSpinLock::Trylock() {
   volatile unsigned int flag = GetFlag();
+  bool iflag = this->DisableInt();
   if (((flag % 2) == 0) && SetFlag(flag, flag + 1)) {
+    _did_stop_interrupt = iflag;
     return 0;
   } else {
+    this->EnableInt(iflag);
     return -1;
   }
 }

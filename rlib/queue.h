@@ -48,7 +48,7 @@ class Queue {
   };
   Container _first;
   Container *_last;
-  SpinLock _lock;
+  IntSpinLock _lock;
 };
 
 class FunctionalQueue final : public Functional {
@@ -98,7 +98,7 @@ class Queue2 {
   };
   Container _first;
   Container *_last;
-  SpinLock _lock;
+  IntSpinLock _lock;
 };
 
 template <class T>
@@ -209,7 +209,7 @@ class FunctionalIntQueue final : public Functional {
 
 template <class T>
 void IntQueue<T>::Push(T *data) {
-  Container *c = data;
+  Container *c = new Container;
   c->next = nullptr;
   c->data = data;
   Locker locker(_lock);
