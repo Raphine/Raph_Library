@@ -36,32 +36,6 @@ public:
   virtual bool IsLocked() = 0;
 };
 
-// 割り込みハンドラ内では使えないので注意
-class SpinLock : public SpinLockInterface { 
-public:
-  SpinLock() {}
-  virtual ~SpinLock() {}
-  virtual volatile unsigned int GetFlag() override {
-    return _flag;
-  }
-  virtual void Lock() override;
-  virtual void Unlock() override;
-  virtual int Trylock() override;
-  virtual bool IsLocked() override {
-    return ((_flag % 2) == 1);
-  }
-protected:
-  bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
-    return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
-  }
-  volatile unsigned int _flag = 0;
-  volatile int _id = -1;
-};
-
-#ifdef __KERNEL__
-// 割り込みハンドラ内でも使えるSpinLock
-// ロック確保時にI/O割り込みを禁止するため、可能ならSpinLockを使う事
-// また、例外処理中などは使えない
 class IntSpinLock : public SpinLockInterface {
 public:
   IntSpinLock() {}
@@ -79,19 +53,31 @@ protected:
   bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
     return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
   }
-  bool DisableInt();
-  void EnableInt(bool flag);
+  bool DisableInt() {
+#ifdef __KERNEL__
+    uint64_t if_flag;
+    asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
+    _did_stop_interrupt = (if_flag != 0);
+    asm volatile("cli;");
+    return _did_stop_interrupt;
+#else
+    return false;
+#endif // __KERNEL__
+  }
+
+  void EnableInt(bool flag) {
+#ifdef __KERNEL__
+    if (flag) {
+      asm volatile("sti");
+    }
+#endif // __KERNEL__
+  }
   volatile unsigned int _flag = 0;
   bool _did_stop_interrupt = false;
   volatile int _id;
 };
-#else
-class IntSpinLock : public SpinLock {
-public:
-  IntSpinLock() {}
-  virtual ~IntSpinLock() {}
-};
-#endif // __KERNEL__
+
+using SpinLock = IntSpinLock;
 
 // コンストラクタ、デストラクタでlock,unlockができるラッパー
 // 関数からreturnする際に必ずunlockできるので、unlock忘れを防止する

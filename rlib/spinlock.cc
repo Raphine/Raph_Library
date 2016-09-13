@@ -30,36 +30,6 @@
 #include <apic.h>
 #endif // __KERNEL__
 
-void SpinLock::Lock() {
-#ifdef __KERNEL__
-  kassert(idt->GetHandlingCnt() == 0);
-#endif // __KERNEL__
-  if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetId());
-  }
-  volatile unsigned int flag = GetFlag();
-  while((flag % 2) == 1 || !SetFlag(flag, flag + 1)) {
-    flag = GetFlag();
-  }
-  _id = cpu_ctrl->GetId();
-}
-
-void SpinLock::Unlock() {
-  kassert((_flag % 2) == 1);
-  _id = -1;
-  _flag++;
-}
-
-int SpinLock::Trylock() {
-  volatile unsigned int flag = GetFlag();
-  if (((flag % 2) == 0) && SetFlag(flag, flag + 1)) {
-    return 0;
-  } else {
-    return -1;
-  }
-}
-
-#ifdef __KERNEL__
 void IntSpinLock::Lock() {
   if ((_flag % 2) == 1) {
     kassert(_id != cpu_ctrl->GetId());
@@ -82,8 +52,8 @@ void IntSpinLock::Lock() {
 void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
   _id = -1;
-  _flag++;
   this->EnableInt(_did_stop_interrupt);
+  _flag++;
 }
 
 int IntSpinLock::Trylock() {
@@ -98,17 +68,3 @@ int IntSpinLock::Trylock() {
   }
 }
 
-bool IntSpinLock::DisableInt() {
-  uint64_t if_flag;
-  asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
-  _did_stop_interrupt = (if_flag != 0);
-  asm volatile("cli;");
-  return _did_stop_interrupt;
-}
-
-void IntSpinLock::EnableInt(bool flag) {
-  if (flag) {
-    asm volatile("sti");
-  }
-}
-#endif // __KERNEL__
