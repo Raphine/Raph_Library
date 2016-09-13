@@ -79,8 +79,8 @@ protected:
   bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
     return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
   }
-  void DisableInt();
-  void EnableInt();
+  bool DisableInt();
+  void EnableInt(bool flag);
   volatile unsigned int _flag = 0;
   bool _did_stop_interrupt = false;
   volatile int _id;

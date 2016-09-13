@@ -67,11 +67,12 @@ void IntSpinLock::Lock() {
   volatile unsigned int flag = GetFlag();
   while(true) {
     if ((flag % 2) != 1) {
-      this->DisableInt();
+      bool iflag = this->DisableInt();
       if (SetFlag(flag, flag + 1)) {
+        _did_stop_interrupt = iflag;
         break;
       }
-      this->EnableInt();
+      this->EnableInt(iflag);
     }
     flag = GetFlag();
   }
@@ -82,7 +83,7 @@ void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
   _id = -1;
   _flag++;
-  this->EnableInt();
+  this->EnableInt(_did_stop_interrupt);
 }
 
 int IntSpinLock::Trylock() {
@@ -94,15 +95,16 @@ int IntSpinLock::Trylock() {
   }
 }
 
-void IntSpinLock::DisableInt() {
+bool IntSpinLock::DisableInt() {
   uint64_t if_flag;
   asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
   _did_stop_interrupt = (if_flag != 0);
   asm volatile("cli;");
+  return _did_stop_interrupt;
 }
 
-void IntSpinLock::EnableInt() {
-  if (_did_stop_interrupt) {
+void IntSpinLock::EnableInt(bool flag) {
+  if (flag) {
     asm volatile("sti");
   }
 }
