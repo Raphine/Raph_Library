@@ -32,8 +32,17 @@ public:
     _obj = p._obj;
     p._obj = nullptr;
   }
+  uptr() {
+    _obj = nullptr;
+  }
+  // to manage raw ptr
+  // ptr 'obj' must be allocated by 'new'
+  uptr(T *obj) {
+    _obj = obj;
+  }
   template <class ...Args>
-  uptr(Args ...args) {
+  void Init(Args ...args) {
+    kassert(_obj == nullptr);
     _obj = new T(args...);
   }
   ~uptr() {
@@ -47,8 +56,64 @@ public:
     }
     return _obj;
   }
+  T *GetRawPtr() {
+    if (_obj == nullptr) {
+      kassert(false);
+    }
+    return _obj;
+  }
 private:
   T *_obj;
+};
+
+template<class T>
+class auptr {
+public:
+  auptr(auptr &p) {
+    _obj = p._obj;
+    _len = p._len;
+    p._obj = nullptr;
+  }
+  auptr(T *obj, int len) {
+    _obj = obj;
+    _len = len;
+  }
+  auptr() {
+    _len = 0;
+    _obj = nullptr;
+  }
+  void Init(int len) {
+    kassert(_obj == nullptr);
+    _len = len;
+    _obj = new T[_len];
+  }
+  ~auptr() {
+    delete[] _obj;
+  }
+  T *operator&();
+  T *operator*();
+  T *operator->() {
+    if (_obj == nullptr) {
+      kassert(false);
+    }
+    return _obj;
+  }
+  T & operator [](int n) {
+    kassert(0 <= n && n < _len);
+    return _obj[n];
+  }
+  T *GetRawPtr() {
+    if (_obj == nullptr) {
+      kassert(false);
+    }
+    return _obj;
+  }
+  int GetLen() {
+    return _len;
+  }
+private:
+  T *_obj;
+  int _len;
 };
 
 template<class T>
@@ -60,8 +125,16 @@ public:
     while(!__sync_bool_compare_and_swap(_ref_cnt, *_ref_cnt, *_ref_cnt + 1)) {
     }
   }
+  sptr(T *obj) {
+    _obj = obj;
+    _ref_cnt = new int(1);
+  }
+  sptr() {
+    _obj = nullptr;
+  }
   template <class ...Args>
-  sptr(Args ...args) {
+  void Init(Args ...args) {
+    kassert(_obj == nullptr);
     _obj = new T(args...);
     _ref_cnt = new int(1);
   }
@@ -70,11 +143,18 @@ public:
     }
     if (*_ref_cnt == 0) {
       delete _obj;
+      delete _ref_cnt;
     }
   }
   T *operator&();
   T *operator*();
   T *operator->() {
+    return _obj;
+  }
+  T *GetRawPtr() {
+    if (_obj == nullptr) {
+      kassert(false);
+    }
     return _obj;
   }
 private:
