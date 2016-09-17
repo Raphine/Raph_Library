@@ -35,19 +35,19 @@ void SpinLock::Lock() {
   kassert(idt->GetHandlingCnt() == 0);
 #endif // __KERNEL__
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetId());
+    kassert(_id != cpu_ctrl->GetCpuId());
   }
   volatile unsigned int flag = GetFlag();
   while((flag % 2) == 1 || !SetFlag(flag, flag + 1)) {
     flag = GetFlag();
   }
-  _id = cpu_ctrl->GetId();
+  _id = cpu_ctrl->GetCpuId();
 }
 
 void DebugSpinLock::Lock() {
   kassert(_key == kKey);
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetId());
+    kassert(_id != cpu_ctrl->GetCpuId());
   }
   SpinLock::Lock();
 }
@@ -70,7 +70,7 @@ int SpinLock::Trylock() {
 #ifdef __KERNEL__
 void IntSpinLock::Lock() {
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetId());
+    kassert(_id != cpu_ctrl->GetCpuId());
   }
   volatile unsigned int flag = GetFlag();
   while(true) {
@@ -83,7 +83,7 @@ void IntSpinLock::Lock() {
     }
     flag = GetFlag();
   }
-  _id = cpu_ctrl->GetId();
+  _id = cpu_ctrl->GetCpuId();
 }
 
 void IntSpinLock::Unlock() {

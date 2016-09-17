@@ -62,7 +62,7 @@ void TaskCtrl::Setup() {
 }
 
 void TaskCtrl::Run() {
-  int cpuid = cpu_ctrl->GetId();
+  int cpuid = cpu_ctrl->GetCpuId();
   _task_struct[cpuid].state = TaskQueueState::kNotRunning;
 #ifdef __KERNEL__
   apic_ctrl->SetupTimer(kTaskExecutionInterval);
@@ -181,7 +181,7 @@ void TaskCtrl::Run() {
 }
 
 void TaskCtrl::Register(int cpuid, Task *task) {
-  if (!cpu_ctrl->IsValidId(cpuid)) {
+  if (!cpu_ctrl->IsValidCpuId(cpuid)) {
     return;
   }
   Locker locker(_task_struct[cpuid].lock);
@@ -241,7 +241,7 @@ void TaskCtrl::Remove(Task *task) {
 
 void TaskCtrl::RegisterCallout(Callout *task) {
   int cpuid = task->_cpuid;
-  if (!cpu_ctrl->IsValidId(cpuid)) {
+  if (!cpu_ctrl->IsValidCpuId(cpuid)) {
     return;
   }
   {
@@ -303,7 +303,7 @@ void TaskCtrl::CancelCallout(Callout *task) {
 void TaskCtrl::ForceWakeup(int cpuid) {
 #ifdef __KERNEL__
   if (_task_struct[cpuid].state == TaskQueueState::kSlept) {
-    if (cpu_ctrl->GetId() != cpuid) {
+    if (cpu_ctrl->GetCpuId() != cpuid) {
       apic_ctrl->SendIpi(apic_ctrl->GetApicIdFromCpuId(cpuid));
     }
   }
@@ -315,7 +315,7 @@ Task::~Task() {
 }
 
 void CountableTask::Inc() {
-  if (!cpu_ctrl->IsValidId(_cpuid)) {
+  if (!cpu_ctrl->IsValidCpuId(_cpuid)) {
     return;
   }
   //TODO CASを使って高速化
@@ -338,7 +338,7 @@ void CountableTask::HandleSub(void *) {
 }
 
 void Callout::SetHandler(uint32_t us) {
-  SetHandler(cpu_ctrl->GetId(), us);
+  SetHandler(cpu_ctrl->GetCpuId(), us);
 }
 
 void Callout::SetHandler(int cpuid, int us) {
@@ -359,6 +359,6 @@ void Callout::HandleSub(void *) {
     _func.Execute();
     _state = CalloutState::kStopped;
   } else {
-    task_ctrl->Register(cpu_ctrl->GetId(), &_task);
+    task_ctrl->Register(cpu_ctrl->GetCpuId(), &_task);
   }
 }
