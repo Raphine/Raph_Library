@@ -44,6 +44,7 @@ class CpuCtrlInterface {
     bool IsValidCpuId(int cpuid) {
       return (cpuid >= 0 && cpuid < GetHowManyCpus());
     }
+    virtual void AssignCpusNotAssignedToGeneralPurpose() = 0;
 };
 
 #ifdef __KERNEL__
@@ -82,6 +83,14 @@ class CpuCtrl : public CpuCtrlInterface {
       if(_cpu_purpose_count[cpuid] > 0) _cpu_purpose_count[cpuid]--;
       if(_cpu_purpose_count[cpuid] == 0){
         _cpu_purpose_map[cpuid] = CpuPurpose::kNone;
+      }
+    }
+    void AssignCpusNotAssignedToGeneralPurpose(){
+      int len = GetHowManyCpus();
+      for(int i = 0; i < len; i++){
+        if(_cpu_purpose_map[i] == CpuPurpose::kNone){
+          _RetainCpuId(i, CpuPurpose::kGeneralPurpose);
+        }
       }
     }
   private:
