@@ -70,10 +70,10 @@ void FunctionalBase<L>::WakeupFunction() {
 }
 
 template<class L>
-void FunctionalBase<L>::Handle(void *p) {
+void FunctionalBase<L>::Handle(Task *t, void *p) {
   FunctionalBase<L> *that = reinterpret_cast<FunctionalBase<L> *>(p);
   if (that->ShouldFunc()) {
-    that->_func.Execute();
+    that->_func.Execute(t);
   }
   {
     Locker locker(that->_lock);
