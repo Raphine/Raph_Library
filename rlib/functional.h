@@ -25,19 +25,22 @@
 
 #include <spinlock.h>
 #include <task.h>
+#include <functional.h>
+#include <raph.h>
 
-class Functional {
+template<class L>
+class FunctionalBase {
  public:
   enum class FunctionState {
     kFunctioning,
     kNotFunctioning,
   };
-  Functional() {
+  FunctionalBase() {
     Function2<Task> func;
     func.Init(Handle, reinterpret_cast<void *>(this));
     _task.SetFunc(func);
   }
-  virtual ~Functional() {
+  virtual ~FunctionalBase() {
   }
   void SetFunction(int cpuid, const GenericFunction2<Task> &func);
  protected:
@@ -49,8 +52,48 @@ class Functional {
   FunctionBase2<Task> _func;
   Task _task;
   int _cpuid = 0;
-  SpinLock _lock;
+  L _lock;
   FunctionState _state = FunctionState::kNotFunctioning;
 };
+
+template<class L>
+void FunctionalBase<L>::WakeupFunction() {
+  if (!_func.CanExecute()) {
+    return;
+  }
+  Locker locker(_lock);
+  if (_state == FunctionState::kFunctioning) {
+    return;
+  }
+  _state = FunctionState::kFunctioning;
+  task_ctrl->Register(_cpuid, &_task);
+}
+
+template<class L>
+void FunctionalBase<L>::Handle(void *p) {
+  FunctionalBase<L> *that = reinterpret_cast<FunctionalBase<L> *>(p);
+  if (that->ShouldFunc()) {
+    that->_func.Execute();
+  }
+  {
+    Locker locker(that->_lock);
+    if (!that->ShouldFunc()) {
+      that->_state = FunctionState::kNotFunctioning;
+      return;
+    }
+  }
+  task_ctrl->Register(that->_cpuid, &that->_task);
+}
+
+template<class L>
+void FunctionalBase<L>::SetFunction(int cpuid, const GenericFunction2<Task> &func) {
+  kassert(!_func.CanExecute());
+  _cpuid = cpuid;
+  _func.Copy(func);
+}
+
+using Functional = FunctionalBase<SpinLock>;
+
+using IntFunctional = FunctionalBase<IntSpinLock>;
 
 #endif // __RAPH_KERNEL_FUNCTIONAL_H__

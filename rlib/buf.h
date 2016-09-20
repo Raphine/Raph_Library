@@ -31,14 +31,14 @@
 #include <task.h>
 #include <functional.h>
 
-template<class T, int S>
-class RingBuffer {
+template<class T, int S, class L>
+class RingBufferBase {
  public:
-  RingBuffer() {
+  RingBufferBase() {
     _head = 0;
     _tail = 0;
   }
-  virtual ~RingBuffer() {
+  virtual ~RingBufferBase() {
   }
   // 満杯の時は何もせず、falseを返す
   bool Push(T data) {
@@ -76,19 +76,26 @@ class RingBuffer {
   T _buffer[S];
   int _head;
   int _tail;
-  IntSpinLock _lock;
+  L _lock;
 };
 
 template<class T, int S>
-  class FunctionalRingBuffer final : public Functional {
+  using RingBuffer = RingBufferBase<T, S, SpinLock>;
+
+template<class T, int S>
+  using IntRingBuffer = RingBufferBase<T, S, IntSpinLock>;
+
+
+template<class T, int S, class L>
+  class FunctionalRingBufferBase final : public FunctionalBase<L> {
  public:
-  FunctionalRingBuffer() {
+  FunctionalRingBufferBase() {
   }
-  ~FunctionalRingBuffer() {
+  ~FunctionalRingBufferBase() {
   }
   bool Push(T data) {
     bool flag = _buf.Push(data);
-    WakeupFunction();
+    FunctionalBase<L>::WakeupFunction();
     return flag;
   }
   bool Pop(T &data) {
@@ -104,8 +111,13 @@ template<class T, int S>
   virtual bool ShouldFunc() override {
     return !_buf.IsEmpty();
   }
-  RingBuffer<T, S> _buf;
+  RingBufferBase<T, S, L> _buf;
 };
 
+template<class T, int S>
+  using FunctionalRingBuffer = FunctionalRingBufferBase<T, S, SpinLock>;
+
+template<class T, int S>
+  using IntFunctionalRingBuffer = FunctionalRingBufferBase<T, S, IntSpinLock>;
 
 #endif /* __RAPH_KERNEL_BUF_H__ */
