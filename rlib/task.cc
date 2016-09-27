@@ -22,6 +22,7 @@
 
 #include <task.h>
 #include <cpu.h>
+#include <setjmp.h>
 
 #ifdef __KERNEL__
 #include <apic.h>
@@ -61,7 +62,7 @@ void TaskCtrl::Setup() {
   }
 }
 
-void TaskCtrl::Run() {
+void TaskCtrl::RunSub(TaskThread *thread) {
   int cpuid = cpu_ctrl->GetId();
   _task_struct[cpuid].state = TaskQueueState::kNotRunning;
 #ifdef __KERNEL__
@@ -176,6 +177,16 @@ void TaskCtrl::Run() {
   }
 }
 
+void TaskCtrl::Run() {
+  DefaultTaskThread thread;
+  {
+    int cpuid = cpu_ctrl->GetId();
+    Locker locker(_task_struct[cpuid].dlock);
+    _task_struct[cpuid].running_thread.Push(&thread);
+  }
+  RunSub(&thread);
+}
+
 void TaskCtrl::Register(int cpuid, Task *task) {
   if (!cpu_ctrl->IsValidId(cpuid)) {
     return;
@@ -233,6 +244,31 @@ void TaskCtrl::Remove(Task *task) {
   }
   task->_status = Task::Status::kOutOfQueue;  
 }
+
+#ifdef __KERNEL__
+void TaskCtrl::Wait() {
+  // TODO
+  // detect if lock acquired in current task
+  // it will cause deadlock
+}
+
+#include <mem/kstack.h>
+
+TaskCtrl::TaskThread(const bool allocate) : _container(this), _allocated(allocate) {
+  if (allocate) {
+    KernelStackCtrl::GetCtrl().AllocThreadStack(cpu_ctrl->GetId());
+  }
+}
+
+#else
+
+TaskCtrl::TaskThread(const bool allocate) : _container(this), _allocated(allocate) {
+  // currently dynamic allocated thread is not supported
+  assert(!allocate);
+}
+
+#endif // __KERNEL__
+
 
 void TaskCtrl::RegisterCallout(Callout *task) {
   int cpuid = task->_cpuid;

@@ -23,13 +23,8 @@
 #ifndef __RAPH_LIB_TASK_H__
 #define __RAPH_LIB_TASK_H__
 
-#include <global.h>
-#include <function.h>
-#include <spinlock.h>
-#include <timer.h>
-
-class Task;
-class Callout;
+#include "_task.h"
+#include "_queue.h"
 
 class TaskCtrl {
 public:
@@ -43,6 +38,7 @@ public:
   void Setup();
   void Register(int cpuid, Task *task);
   void Remove(Task *task);
+  void Wait();
   void Run();
   TaskQueueState GetState(int cpuid) {
     if (_task_struct == nullptr) {
@@ -50,26 +46,26 @@ public:
     }
     return _task_struct[cpuid].state;
   }
-  // MEMO
-  // do not forget to change cpuid on KernelStackInfo
-  // if you move Task to another cpu queue.
  private:
-  class ProcHaltCtrl {
-  public:
-    virtual ~ProcHaltCtrl() {
-    }
-    virtual void SetupSchedular(int interval) {
-    }
-    virtual void Halt() {
-    }
-    virtual void ScheduleWakeup() {
-    }
-  };
-  
   friend Callout;
   void RegisterCallout(Callout *task);
   void CancelCallout(Callout *task);
   void ForceWakeup(int cpuid);
+  class TaskThread : public IntQueue<TaskThread>::ContainerInterface {
+  public:
+    TaskThread(const bool allocate);
+    virtual ~TaskThread() {
+    }
+    virtual bool Enable();
+  private:
+    TaskThread();
+    virtual IntQueue<TaskThread>::Container *GetIntQueueContainer() override {
+      return &_container;
+    }
+    IntQueue<TaskThread>::Container _container;
+    const bool _allocated;
+  };
+  void RunSub(TaskThread *thread);
   struct TaskStruct {
     // queue
     Task *top;
@@ -83,166 +79,13 @@ public:
     // for Callout
     IntSpinLock dlock;
     Callout *dtop;
+
+    IntQueue<TaskThread> waiting_thread;
+    IntQueue<TaskThread> running_thread;
   } *_task_struct = nullptr;
   // this const value defines interval of wakeup task controller when all task slept
   // (task controller doesn't sleep if there is any registered tasks)
   static const int kTaskExecutionInterval = 1000; // us
 };
-
-class Task {
-public:
-  Task() {
-  }
-  virtual ~Task();
-  void SetFunc(const GenericFunction2<Task> &func) {
-    _func.Copy(func);
-  }
-  enum class Status {
-    kRunning,
-    kWaitingInQueue,
-    kOutOfQueue,
-    kGuard,
-  };
-  Status GetStatus() {
-    return _status;
-  }
-private:
-  void Execute() {
-    _func.Execute(this);
-  }
-  FunctionBase2<Task> _func;
-  Task *_next;
-  Task *_prev;
-  Status _status = Status::kOutOfQueue;
-  friend TaskCtrl;
-};
- 
-// Taskがキューに積まれている間にインクリメント可能
-// 割り込み内からも呼び出せる
-// ただし、一定時間後に立ち上げる事や割り当てcpuidを変える事はできない
-class CountableTask {
-public:
-  CountableTask() {
-    _cnt = 0;
-    _cpuid = -1;
-    ClassFunction2<CountableTask, Task> func;
-    func.Init(this, &CountableTask::HandleSub, nullptr);
-    _task.SetFunc(func);
-  }
-  virtual ~CountableTask() {
-  }
-  void SetFunc(int cpuid, const GenericFunction &func) {
-    _cpuid = cpuid;
-    _func.Copy(func);
-  }
-  Task::Status GetStatus() {
-    return _task.GetStatus();
-  }
-  void Inc();
-private:
-  void HandleSub(Task *, void *);
-  Task _task;
-  IntSpinLock _lock;
-  FunctionBase _func;
-  int _cnt;
-  int _cpuid;
-};
-
-// 遅延実行されるタスク 
-// 一度登録すると、実行されるかキャンセルするまでは再登録はできない
-// 割り込み内からも呼び出し可能
-class Callout {
-public:
-  enum class CalloutState {
-    kCalloutQueue,
-    kTaskQueue,
-    kHandling,
-    kStopped,
-  };
-  Callout() {
-    ClassFunction2<Callout, Task> func;
-    func.Init(this, &Callout::HandleSub, nullptr);
-    _task.SetFunc(func);
-  }
-  virtual ~Callout() {
-  }
-  void Init(const GenericFunction &func) {
-    _func.Copy(func);
-  }
-  volatile bool IsHandling() {
-    return (_state == CalloutState::kHandling);
-  }
-  volatile bool CanExecute() {
-    return _func.CanExecute();
-  }
-  void SetHandler(uint32_t us);
-  void SetHandler(int cpuid, int us);
-  void Cancel();
-  bool IsPending() {
-    return _pending;
-  }
-private:
-  void HandleSub(Task *, void *);
-  int _cpuid;
-  Task _task;
-  uint64_t _time;
-  Callout *_next;
-  FunctionBase _func;
-  IntSpinLock _lock;
-  bool _pending = false;
-  friend TaskCtrl;
-  CalloutState _state = CalloutState::kStopped;
-};
-
-#include "spinlock.h"
-
-class LckCallout {
- public:
-  LckCallout() {
-    ClassFunction<LckCallout> func;
-    func.Init(this, &LckCallout::HandleSub, nullptr);
-    callout.Init(func);
-  }
-  virtual ~LckCallout() {
-  }
-  void Init(const GenericFunction &func) {
-    _func.Copy(func);
-  }
-  void SetLock(SpinLock *lock) {
-    _lock = lock;
-  }
-  volatile bool IsHandling() {
-    return callout.IsHandling();
-  }
-  volatile bool CanExecute() {
-    return callout.CanExecute();
-  }
-  void SetHandler(uint32_t us) {
-    callout.SetHandler(us);
-  }
-  void SetHandler(int cpuid, int us) {
-    callout.SetHandler(cpuid, us);
-  }
-  void Cancel() {
-    callout.Cancel();
-  }
-  bool IsPending() {
-    return callout.IsPending();
-  }
- private:
-  void HandleSub(void *) {
-    if (_lock != nullptr) {
-      _lock->Lock();
-    }
-    _func.Execute();
-    if (_lock != nullptr) {
-      _lock->Unlock();
-    }
-  }
-  SpinLock *_lock = nullptr;
-  Callout callout;
-  FunctionBase _func;
-};
-
 
 #endif /* __RAPH_LIB_TASK_H__ */

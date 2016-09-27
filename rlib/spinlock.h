@@ -53,25 +53,6 @@ protected:
   bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
     return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
   }
-  bool DisableInt() {
-#ifdef __KERNEL__
-    uint64_t if_flag;
-    asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
-    _did_stop_interrupt = (if_flag != 0);
-    asm volatile("cli;");
-    return _did_stop_interrupt;
-#else
-    return false;
-#endif // __KERNEL__
-  }
-
-  void EnableInt(bool flag) {
-#ifdef __KERNEL__
-    if (flag) {
-      asm volatile("sti");
-    }
-#endif // __KERNEL__
-  }
   volatile unsigned int _flag = 0;
   bool _did_stop_interrupt = false;
   volatile int _id;

@@ -37,12 +37,12 @@ void IntSpinLock::Lock() {
   volatile unsigned int flag = GetFlag();
   while(true) {
     if ((flag % 2) != 1) {
-      bool iflag = this->DisableInt();
+      bool iflag = disable_interrupt();
       if (SetFlag(flag, flag + 1)) {
         _did_stop_interrupt = iflag;
         break;
       }
-      this->EnableInt(iflag);
+      enable_interrupt(iflag);
     }
     flag = GetFlag();
   }
@@ -52,18 +52,18 @@ void IntSpinLock::Lock() {
 void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
   _id = -1;
-  this->EnableInt(_did_stop_interrupt);
+  enable_interrupt(_did_stop_interrupt);
   _flag++;
 }
 
 int IntSpinLock::Trylock() {
   volatile unsigned int flag = GetFlag();
-  bool iflag = this->DisableInt();
+  bool iflag = disable_interrupt();
   if (((flag % 2) == 0) && SetFlag(flag, flag + 1)) {
     _did_stop_interrupt = iflag;
     return 0;
   } else {
-    this->EnableInt(iflag);
+    enable_interrupt(iflag);
     return -1;
   }
 }
