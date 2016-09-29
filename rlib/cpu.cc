@@ -20,35 +20,14 @@
  * 
  */
 
-#ifndef __RAPH_LIB_CPU_H__
-#define __RAPH_LIB_CPU_H__
-
-class CpuCtrlInterface {
-public:
-  virtual ~CpuCtrlInterface() {
-  }
-  virtual volatile int GetId() = 0;
-  virtual int GetHowManyCpus() = 0;
-  bool IsValidId(int cpuid) {
-    return (cpuid >= 0 && cpuid < GetHowManyCpus());
-  }
-};
+#include <cpu.h>
+#include <apic.h>
+#include <global.h>
 
 #ifdef __KERNEL__
-#include <mem/kstack.h>
 
-class CpuCtrl : public CpuCtrlInterface {
-public:
-  virtual volatile int GetId() override {
-    if (!KernelStackCtrl::IsInitialized()) {
-      return 0;
-    }
-    return KernelStackCtrl::GetCtrl().GetCpuId();
-  }
-  virtual int GetHowManyCpus() override;
-};
-#else
-#include <thread.h>
-#endif /* __KERNEL__ */
+int CpuCtrl::GetHowManyCpus() {
+  return apic_ctrl->GetHowManyCpus();
+}
 
-#endif /* __RAPH_LIB_CPU_H__ */
+#endif // __KERNEL__
