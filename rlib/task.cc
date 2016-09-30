@@ -31,6 +31,9 @@
 #endif // __KERNEL__
 
 void TaskCtrl::Setup() {
+#ifdef __KERNEL__
+  kassert(apic_ctrl->DidSetup());
+#endif // __KERNEL__
   int cpus = cpu_ctrl->GetHowManyCpus();
   _task_struct = reinterpret_cast<TaskStruct *>(virtmem_ctrl->Alloc(sizeof(TaskStruct) * cpus));
   Task *t;
