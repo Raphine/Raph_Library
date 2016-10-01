@@ -1,4 +1,4 @@
-OBJS = psocket.o
+OBJS = psocket.o pstack.o eth.o arp.o ip.o udp.o
 
 DEPS= $(filter %.d, $(subst .o,.d, $(OBJS)))
 
