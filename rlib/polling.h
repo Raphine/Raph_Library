@@ -43,7 +43,7 @@ class Polling {
     if (_state == PollingState::kPolling) {
       return;
     }
-    _cpuid = cpuid.getId();
+    _cpuid = cpuid.GetRawId();
     _state = PollingState::kPolling;
     task_ctrl->Register(_cpuid, &_task);
   }

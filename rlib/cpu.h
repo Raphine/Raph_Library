@@ -32,15 +32,21 @@ enum class CpuPurpose {
 
 class CpuId {
   private:
-    int id;
-  public:
-    const int kCpuIdNotFound = -1;
-    const int kCpuIdBootProcessor = 0;
-    CpuId(int newid){
-      id = newid;
+    int rawid;
+    void Init(int newid){
+      rawid = newid;
     }
-    int getId(){
-      return id;
+  public:
+    static const int kCpuIdNotFound = -1;
+    static const int kCpuIdBootProcessor = 0;
+    CpuId(){
+      Init(kCpuIdNotFound);
+    }
+    CpuId(int newid){
+      Init(newid);
+    }
+    int GetRawId(){
+      return rawid;
     }
     uint8_t GetApicId();
     bool IsValid();
@@ -55,11 +61,8 @@ class CpuCtrlInterface {
     }
     virtual CpuId GetCpuId() = 0;
     virtual int GetHowManyCpus() = 0;
-    virtual int RetainCpuIdForPurpose(CpuPurpose p) = 0;
-    virtual void ReleaseCpuId(int cpuid) = 0;
-    bool IsValidCpuId(int cpuid) {
-      return (cpuid >= 0 && cpuid < GetHowManyCpus());
-    }
+    virtual CpuId RetainCpuIdForPurpose(CpuPurpose p) = 0;
+    virtual void ReleaseCpuId(CpuId cpuid) = 0;
     virtual void AssignCpusNotAssignedToGeneralPurpose() = 0;
 };
 
@@ -73,27 +76,12 @@ class CpuCtrl : public CpuCtrlInterface {
     }
     CpuId GetCpuId() override;
     int GetHowManyCpus() override;
-    int RetainCpuIdForPurpose(CpuPurpose p) override {
-      // Returns valid CpuId all time.
-      // boot processor is always assigned to kLowPriority
-      if(p == CpuPurpose::kLowPriority) return kCpuIdBootProcessor;
-      int cpuid;
-      cpuid = GetCpuIdNotAssigned();
-      if(cpuid != kCpuIdNotFound){
-        RetainCpuId(cpuid, p);
-        return cpuid;
-      }
-      cpuid = GetCpuIdLessAssignedFor(p);
-      if(cpuid != kCpuIdNotFound){
-        RetainCpuId(cpuid, p);
-        return cpuid;
-      }
-      return kCpuIdBootProcessor;
-    }
-    void ReleaseCpuId(int cpuid) override {
-      if(cpu_purpose_count[cpuid] > 0) cpu_purpose_count[cpuid]--;
-      if(cpu_purpose_count[cpuid] == 0){
-        cpu_purpose_map[cpuid] = CpuPurpose::kNone;
+    CpuId RetainCpuIdForPurpose(CpuPurpose p) override; 
+    void ReleaseCpuId(CpuId cpuid) override {
+      int raw_cpu_id = cpuid.GetRawId();
+      if(cpu_purpose_count[raw_cpu_id] > 0) cpu_purpose_count[raw_cpu_id]--;
+      if(cpu_purpose_count[raw_cpu_id] == 0){
+        cpu_purpose_map[raw_cpu_id] = CpuPurpose::kNone;
       }
     }
     void AssignCpusNotAssignedToGeneralPurpose(){

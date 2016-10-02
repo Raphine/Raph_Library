@@ -63,7 +63,7 @@ void TaskCtrl::Setup() {
 
 void TaskCtrl::Run() {
   CpuId cpuid = cpu_ctrl->GetCpuId();
-  int raw_cpu_id = cpuid.getId();
+  int raw_cpu_id = cpuid.GetRawId();
   TaskStruct *ts = &_task_struct[raw_cpu_id];
 
   ts->state = TaskQueueState::kNotRunning;
@@ -188,7 +188,7 @@ void TaskCtrl::Register(CpuId cpuid, Task *task) {
   if (!cpuid.IsValid()) {
     return;
   }
-  int raw_cpu_id = cpuid.getId();
+  int raw_cpu_id = cpuid.GetRawId();
   Locker locker(_task_struct[raw_cpu_id].lock);
   if (task->_status == Task::Status::kWaitingInQueue) {
     return;
@@ -245,14 +245,14 @@ void TaskCtrl::Remove(Task *task) {
 }
 
 void TaskCtrl::RegisterCallout(Callout *task) {
-  int cpuid = task->_cpuid;
-  if (!cpu_ctrl->IsValidCpuId(cpuid)) {
+  CpuId cpuid = task->_cpuid;
+  TaskStruct *ts = &_task_struct[task->_cpuid];
+  if (cpuid.IsValid()) {
     return;
   }
   {
-    Locker locker(_task_struct[cpuid].dlock);
-  
-    Callout *dt = _task_struct[cpuid].dtop;
+    Locker locker(ts->dlock);
+    Callout *dt = ts->dtop;
     while(true) {
       Callout *dtt = dt->_next;
       if (dt->_next != nullptr) {
@@ -307,8 +307,8 @@ void TaskCtrl::CancelCallout(Callout *task) {
 
 void TaskCtrl::ForceWakeup(CpuId cpuid) {
 #ifdef __KERNEL__
-  if (_task_struct[cpuid.getId()].state == TaskQueueState::kSlept) {
-    if (cpu_ctrl->GetCpuId().getId() != cpuid.getId()) {
+  if (_task_struct[cpuid.GetRawId()].state == TaskQueueState::kSlept) {
+    if (cpu_ctrl->GetCpuId().GetRawId() != cpuid.GetRawId()) {
       apic_ctrl->SendIpi(cpuid.GetApicId());
     }
   }
@@ -320,14 +320,15 @@ Task::~Task() {
 }
 
 void CountableTask::Inc() {
-  if (!cpu_ctrl->IsValidCpuId(_cpuid)) {
+  CpuId cpuid(_cpuid);
+  if (!cpuid.IsValid()) {
     return;
   }
   //TODO CASを使って高速化
   Locker locker(_lock);
   _cnt++;
   if (_cnt == 1) {
-    task_ctrl->Register(_cpuid, &_task);
+    task_ctrl->Register(cpuid, &_task);
   }
 }
 
@@ -349,7 +350,7 @@ void Callout::SetHandler(uint32_t us) {
 void Callout::SetHandler(CpuId cpuid, int us) {
   Locker locker(_lock);
   _time = timer->GetCntAfterPeriod(timer->ReadMainCnt(), us);
-  _cpuid = cpuid.getId();
+  _cpuid = cpuid.GetRawId();
   task_ctrl->RegisterCallout(this);
 }
 

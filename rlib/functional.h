@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
@@ -27,6 +27,7 @@
 #include <task.h>
 #include <functional.h>
 #include <raph.h>
+#include <cpu.h>
 
 template<class L>
 class FunctionalBase {
@@ -42,7 +43,7 @@ class FunctionalBase {
   }
   virtual ~FunctionalBase() {
   }
-  void SetFunction(int cpuid, const GenericFunction &func);
+  void SetFunction(CpuId cpuid, const GenericFunction &func);
  protected:
   void WakeupFunction();
   // check whether Functional needs to process function
@@ -86,9 +87,9 @@ void FunctionalBase<L>::Handle(void *p) {
 }
 
 template<class L>
-void FunctionalBase<L>::SetFunction(int cpuid, const GenericFunction &func) {
+void FunctionalBase<L>::SetFunction(CpuId cpuid, const GenericFunction &func) {
   kassert(!_func.CanExecute());
-  _cpuid = cpuid;
+  _cpuid = cpuid.GetRawId();
   _func.Copy(func);
 }
 

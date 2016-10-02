@@ -49,7 +49,7 @@ public:
     if (_task_struct == nullptr) {
       return TaskQueueState::kNotStarted;
     }
-    return _task_struct[cpuid.getId()].state;
+    return _task_struct[cpuid.GetRawId()].state;
   }
  private:
   class ProcHaltCtrl {
@@ -111,7 +111,7 @@ private:
   FunctionBase _func;
   Task *_next;
   Task *_prev;
-  int _cpuid;
+  int _cpuid = -1;
   Status _status = Status::kOutOfQueue;
   friend TaskCtrl;
 };
@@ -131,7 +131,7 @@ public:
   virtual ~CountableTask() {
   }
   void SetFunc(CpuId cpuid, const GenericFunction &func) {
-    _cpuid = cpuid.getId();
+    _cpuid = cpuid.GetRawId();
     _func.Copy(func);
   }
   Task::Status GetStatus() {
