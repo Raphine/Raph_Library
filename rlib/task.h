@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
@@ -27,6 +27,7 @@
 #include <function.h>
 #include <spinlock.h>
 #include <timer.h>
+#include <cpu.h>
 
 class Task;
 class Callout;
@@ -41,14 +42,14 @@ public:
   };
   TaskCtrl() {}
   void Setup();
-  void Register(int cpuid, Task *task);
+  void Register(CpuId cpuid, Task *task);
   void Remove(Task *task);
   void Run();
-  TaskQueueState GetState(int cpuid) {
+  TaskQueueState GetState(CpuId cpuid) {
     if (_task_struct == nullptr) {
       return TaskQueueState::kNotStarted;
     }
-    return _task_struct[cpuid].state;
+    return _task_struct[cpuid.getId()].state;
   }
  private:
   class ProcHaltCtrl {
@@ -66,7 +67,7 @@ public:
   friend Callout;
   void RegisterCallout(Callout *task);
   void CancelCallout(Callout *task);
-  void ForceWakeup(int cpuid);
+  void ForceWakeup(CpuId cpuid);
   struct TaskStruct {
     // queue
     Task *top;
@@ -129,8 +130,8 @@ public:
   }
   virtual ~CountableTask() {
   }
-  void SetFunc(int cpuid, const GenericFunction &func) {
-    _cpuid = cpuid;
+  void SetFunc(CpuId cpuid, const GenericFunction &func) {
+    _cpuid = cpuid.getId();
     _func.Copy(func);
   }
   Task::Status GetStatus() {
@@ -174,7 +175,7 @@ public:
     return _func.CanExecute();
   }
   void SetHandler(uint32_t us);
-  void SetHandler(int cpuid, int us);
+  void SetHandler(CpuId cpuid, int us);
   void Cancel();
 private:
   void HandleSub(void *);
@@ -214,7 +215,7 @@ class LckCallout {
   void SetHandler(uint32_t us) {
     callout.SetHandler(us);
   }
-  void SetHandler(int cpuid, int us) {
+  void SetHandler(CpuId cpuid, int us) {
     callout.SetHandler(cpuid, us);
   }
   void Cancel() {

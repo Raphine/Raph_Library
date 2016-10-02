@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
@@ -62,16 +62,19 @@ void TaskCtrl::Setup() {
 }
 
 void TaskCtrl::Run() {
-  int cpuid = cpu_ctrl->GetCpuId();
-  _task_struct[cpuid].state = TaskQueueState::kNotRunning;
+  CpuId cpuid = cpu_ctrl->GetCpuId();
+  int raw_cpu_id = cpuid.getId();
+  TaskStruct *ts = &_task_struct[raw_cpu_id];
+
+  ts->state = TaskQueueState::kNotRunning;
 #ifdef __KERNEL__
   apic_ctrl->SetupTimer(kTaskExecutionInterval);
 #endif // __KERNEL__
   while(true) {
     TaskQueueState oldstate;
     {
-      Locker locker(_task_struct[cpuid].lock);
-      oldstate = _task_struct[cpuid].state;
+      Locker locker(ts->lock);
+      oldstate = ts->state;
 #ifdef __KERNEL__
       if (oldstate == TaskQueueState::kNotRunning) {
         apic_ctrl->StopTimer();
@@ -79,16 +82,16 @@ void TaskCtrl::Run() {
 #endif // __KERNEL__
       kassert(oldstate == TaskQueueState::kNotRunning
               || oldstate == TaskQueueState::kSlept);
-      _task_struct[cpuid].state = TaskQueueState::kRunning;
+      ts->state = TaskQueueState::kRunning;
     }
     if (oldstate == TaskQueueState::kNotRunning) {
       uint64_t time = timer->GetCntAfterPeriod(timer->ReadMainCnt(), kTaskExecutionInterval);
       
-      Callout *dt = _task_struct[cpuid].dtop;
+      Callout *dt = ts->dtop;
       while(true) {
         Callout *dtt;
         {
-          Locker locker(_task_struct[cpuid].dlock);
+          Locker locker(ts->dlock);
           dtt = dt->_next;
           if (dtt == nullptr) {
             break;
@@ -113,17 +116,17 @@ void TaskCtrl::Run() {
       while(true) {
         Task *t;
         {
-          Locker locker(_task_struct[cpuid].lock);
-          Task *tt = _task_struct[cpuid].top;
+          Locker locker(ts->lock);
+          Task *tt = ts->top;
           t = tt->_next;
           if (t == nullptr) {
-            kassert(tt == _task_struct[cpuid].bottom);
+            kassert(tt == ts->bottom);
             break;
           }
           tt->_next = t->_next;
           if (t->_next == nullptr) {
-            kassert(_task_struct[cpuid].bottom == t);
-            _task_struct[cpuid].bottom = tt;
+            kassert(ts->bottom == t);
+            ts->bottom = tt;
           } else {
             t->_next->_prev = tt;
           }
@@ -135,43 +138,44 @@ void TaskCtrl::Run() {
         t->Execute();
 
         {
-          Locker locker(_task_struct[cpuid].lock);
+          Locker locker(ts->lock);
           if (t->_status == Task::Status::kRunning) {
             t->_status = Task::Status::kOutOfQueue;
           }
         }
       }
-      Locker locker(_task_struct[cpuid].lock);
+      Locker locker(ts->lock);
 
-      if (_task_struct[cpuid].top->_next == nullptr && _task_struct[cpuid].top_sub->_next == nullptr) {
-        _task_struct[cpuid].state = TaskQueueState::kSlept;
+      if (ts->top->_next == nullptr &&
+          ts->top_sub->_next == nullptr) {
+        ts->state = TaskQueueState::kSlept;
         break;
       }
       Task *tmp;
-      tmp = _task_struct[cpuid].top;
-      _task_struct[cpuid].top = _task_struct[cpuid].top_sub;
-      _task_struct[cpuid].top_sub = tmp;
+      tmp = ts->top;
+      ts->top = ts->top_sub;
+      ts->top_sub = tmp;
 
-      tmp = _task_struct[cpuid].bottom;
-      _task_struct[cpuid].bottom = _task_struct[cpuid].bottom_sub;
-      _task_struct[cpuid].bottom_sub = tmp;
+      tmp = ts->bottom;
+      ts->bottom = ts->bottom_sub;
+      ts->bottom_sub = tmp;
 
       //TODO : FIX THIS : callout isn't executed while this loop is running.
     }
     
-    kassert(_task_struct[cpuid].state == TaskQueueState::kSlept);
+    kassert(ts->state == TaskQueueState::kSlept);
 
     {
-      Locker locker(_task_struct[cpuid].dlock);
-      if (_task_struct[cpuid].dtop->_next != nullptr) {
-        _task_struct[cpuid].state = TaskQueueState::kNotRunning;
+      Locker locker(ts->dlock);
+      if (ts->dtop->_next != nullptr) {
+        ts->state = TaskQueueState::kNotRunning;
       }
     }
 #ifdef __KERNEL__
-    if (_task_struct[cpuid].state == TaskQueueState::kNotRunning) {
+    if (ts->state == TaskQueueState::kNotRunning) {
       apic_ctrl->StartTimer();
     } else {
-      kassert(_task_struct[cpuid].state == TaskQueueState::kSlept);
+      kassert(ts->state == TaskQueueState::kSlept);
     }
     asm volatile("hlt");
 #else
@@ -180,22 +184,23 @@ void TaskCtrl::Run() {
   }
 }
 
-void TaskCtrl::Register(int cpuid, Task *task) {
-  if (!cpu_ctrl->IsValidCpuId(cpuid)) {
+void TaskCtrl::Register(CpuId cpuid, Task *task) {
+  if (!cpuid.IsValid()) {
     return;
   }
-  Locker locker(_task_struct[cpuid].lock);
+  int raw_cpu_id = cpuid.getId();
+  Locker locker(_task_struct[raw_cpu_id].lock);
   if (task->_status == Task::Status::kWaitingInQueue) {
     return;
   }
-  task->_cpuid = cpuid;
+  task->_cpuid = raw_cpu_id;
   task->_next = nullptr;
   task->_status = Task::Status::kWaitingInQueue;
-  _task_struct[cpuid].bottom_sub->_next = task;
-  task->_prev = _task_struct[cpuid].bottom_sub;
-  _task_struct[cpuid].bottom_sub = task;
+  _task_struct[raw_cpu_id].bottom_sub->_next = task;
+  task->_prev = _task_struct[raw_cpu_id].bottom_sub;
+  _task_struct[raw_cpu_id].bottom_sub = task;
   
-  ForceWakeup(cpuid);
+  ForceWakeup(raw_cpu_id);
 }
 
 void TaskCtrl::Remove(Task *task) {
@@ -300,11 +305,11 @@ void TaskCtrl::CancelCallout(Callout *task) {
   task->_state = Callout::CalloutState::kStopped;
 }
 
-void TaskCtrl::ForceWakeup(int cpuid) {
+void TaskCtrl::ForceWakeup(CpuId cpuid) {
 #ifdef __KERNEL__
-  if (_task_struct[cpuid].state == TaskQueueState::kSlept) {
-    if (cpu_ctrl->GetCpuId() != cpuid) {
-      apic_ctrl->SendIpi(apic_ctrl->GetApicIdFromCpuId(cpuid));
+  if (_task_struct[cpuid.getId()].state == TaskQueueState::kSlept) {
+    if (cpu_ctrl->GetCpuId().getId() != cpuid.getId()) {
+      apic_ctrl->SendIpi(cpuid.GetApicId());
     }
   }
 #endif // __KERNEL__
@@ -341,10 +346,10 @@ void Callout::SetHandler(uint32_t us) {
   SetHandler(cpu_ctrl->GetCpuId(), us);
 }
 
-void Callout::SetHandler(int cpuid, int us) {
+void Callout::SetHandler(CpuId cpuid, int us) {
   Locker locker(_lock);
   _time = timer->GetCntAfterPeriod(timer->ReadMainCnt(), us);
-  _cpuid = cpuid;
+  _cpuid = cpuid.getId();
   task_ctrl->RegisterCallout(this);
 }
 

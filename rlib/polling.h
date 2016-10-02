@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
@@ -39,11 +39,11 @@ class Polling {
     func.Init(this, &Polling::HandleSub, nullptr);
     _task.SetFunc(func);
   }
-  void RegisterPolling(int cpuid) {
+  void RegisterPolling(CpuId cpuid) {
     if (_state == PollingState::kPolling) {
       return;
     }
-    _cpuid = cpuid;
+    _cpuid = cpuid.getId();
     _state = PollingState::kPolling;
     task_ctrl->Register(_cpuid, &_task);
   }
@@ -73,7 +73,7 @@ class PollingFunc : public Polling {
   void Register() {
     Register(cpu_ctrl->GetCpuId());
   }
-  void Register(int cpuid) {
+  void Register(CpuId cpuid) {
     this->RegisterPolling(cpuid);
   }
   void Remove() {

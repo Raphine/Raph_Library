@@ -16,7 +16,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
@@ -30,6 +30,22 @@ enum class CpuPurpose {
   kCpuPurposesNum
 };
 
+class CpuId {
+  private:
+    int id;
+  public:
+    const int kCpuIdNotFound = -1;
+    const int kCpuIdBootProcessor = 0;
+    CpuId(int newid){
+      id = newid;
+    }
+    int getId(){
+      return id;
+    }
+    uint8_t GetApicId();
+    bool IsValid();
+};
+
 class CpuCtrlInterface {
   public:
     const int kCpuIdNotFound = -1;
@@ -37,7 +53,7 @@ class CpuCtrlInterface {
     //
     virtual ~CpuCtrlInterface() {
     }
-    virtual volatile int GetCpuId() = 0;
+    virtual CpuId GetCpuId() = 0;
     virtual int GetHowManyCpus() = 0;
     virtual int RetainCpuIdForPurpose(CpuPurpose p) = 0;
     virtual void ReleaseCpuId(int cpuid) = 0;
@@ -48,80 +64,75 @@ class CpuCtrlInterface {
 };
 
 #ifdef __KERNEL__
-#include <apic.h>
 #include <global.h>
 
 class CpuCtrl : public CpuCtrlInterface {
   public:
     CpuCtrl() {
-      _cpu_purpose_map[0] = CpuPurpose::kLowPriority;
+      cpu_purpose_map[0] = CpuPurpose::kLowPriority;
     }
-    volatile int GetCpuId() override {
-      return apic_ctrl->GetCpuId();
-    }
-    int GetHowManyCpus() override {
-      return apic_ctrl->GetHowManyCpus();
-    }
+    CpuId GetCpuId() override;
+    int GetHowManyCpus() override;
     int RetainCpuIdForPurpose(CpuPurpose p) override {
       // Returns valid CpuId all time.
       // boot processor is always assigned to kLowPriority
       if(p == CpuPurpose::kLowPriority) return kCpuIdBootProcessor;
       int cpuid;
-      cpuid = _GetCpuIdNotAssigned();
+      cpuid = GetCpuIdNotAssigned();
       if(cpuid != kCpuIdNotFound){
-        _RetainCpuId(cpuid, p);
+        RetainCpuId(cpuid, p);
         return cpuid;
       }
-      cpuid = _GetCpuIdLessAssignedFor(p);
+      cpuid = GetCpuIdLessAssignedFor(p);
       if(cpuid != kCpuIdNotFound){
-        _RetainCpuId(cpuid, p);
+        RetainCpuId(cpuid, p);
         return cpuid;
       }
       return kCpuIdBootProcessor;
     }
     void ReleaseCpuId(int cpuid) override {
-      if(_cpu_purpose_count[cpuid] > 0) _cpu_purpose_count[cpuid]--;
-      if(_cpu_purpose_count[cpuid] == 0){
-        _cpu_purpose_map[cpuid] = CpuPurpose::kNone;
+      if(cpu_purpose_count[cpuid] > 0) cpu_purpose_count[cpuid]--;
+      if(cpu_purpose_count[cpuid] == 0){
+        cpu_purpose_map[cpuid] = CpuPurpose::kNone;
       }
     }
     void AssignCpusNotAssignedToGeneralPurpose(){
       int len = GetHowManyCpus();
       for(int i = 0; i < len; i++){
-        if(_cpu_purpose_map[i] == CpuPurpose::kNone){
-          _RetainCpuId(i, CpuPurpose::kGeneralPurpose);
+        if(cpu_purpose_map[i] == CpuPurpose::kNone){
+          RetainCpuId(i, CpuPurpose::kGeneralPurpose);
         }
       }
     }
   private:
-    CpuPurpose _cpu_purpose_map[ApicCtrl::lapicMaxNumber];
-    int _cpu_purpose_count[ApicCtrl::lapicMaxNumber];
+    static CpuPurpose cpu_purpose_map[];
+    static int cpu_purpose_count[];
     // do not count for cpuid:0 (boot processor is always assigned to kLowPriority)
-    int _GetCpuIdNotAssigned(){
+    int GetCpuIdNotAssigned(){
       int len = GetHowManyCpus();
       for(int i = 0; i < len; i++){
-        if(_cpu_purpose_map[i] == CpuPurpose::kNone) return i;
+        if(cpu_purpose_map[i] == CpuPurpose::kNone) return i;
       }
       return kCpuIdNotFound;
     }
-    int _GetCpuIdLessAssignedFor(CpuPurpose p){
+    int GetCpuIdLessAssignedFor(CpuPurpose p){
       int minCount = -1, minId = kCpuIdNotFound;
       int len = GetHowManyCpus();
       for(int i = 0; i < len; i++){
-        if(_cpu_purpose_map[i] == p &&
-            (minCount == -1 || _cpu_purpose_count[i] < minCount)){
-          minCount = _cpu_purpose_count[i];
+        if(cpu_purpose_map[i] == p &&
+            (minCount == -1 || cpu_purpose_count[i] < minCount)){
+          minCount = cpu_purpose_count[i];
           minId = i;
         }
       }
       return minId;
     }
-    void _RetainCpuId(int cpuid, CpuPurpose p){
-      if(_cpu_purpose_map[cpuid] != p){
-        _cpu_purpose_map[cpuid] = p;
-        _cpu_purpose_count[cpuid] = 0;
+    void RetainCpuId(int cpuid, CpuPurpose p){
+      if(cpu_purpose_map[cpuid] != p){
+        cpu_purpose_map[cpuid] = p;
+        cpu_purpose_count[cpuid] = 0;
       }
-      _cpu_purpose_count[cpuid]++;
+      cpu_purpose_count[cpuid]++;
     }
 };
 
