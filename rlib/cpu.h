@@ -33,19 +33,19 @@ enum class CpuPurpose {
 class CpuId {
   private:
     int rawid;
-    void Init(int newid){
+    void Init(int newid) {
       rawid = newid;
     }
   public:
     static const int kCpuIdNotFound = -1;
     static const int kCpuIdBootProcessor = 0;
-    CpuId(){
+    CpuId() {
       Init(kCpuIdNotFound);
     }
-    CpuId(int newid){
+    CpuId(int newid) {
       Init(newid);
     }
-    int GetRawId(){
+    int GetRawId() {
       return rawid;
     }
     uint8_t GetApicId();
@@ -80,14 +80,14 @@ class CpuCtrl : public CpuCtrlInterface {
     void ReleaseCpuId(CpuId cpuid) override {
       int raw_cpu_id = cpuid.GetRawId();
       if(cpu_purpose_count[raw_cpu_id] > 0) cpu_purpose_count[raw_cpu_id]--;
-      if(cpu_purpose_count[raw_cpu_id] == 0){
+      if(cpu_purpose_count[raw_cpu_id] == 0) {
         cpu_purpose_map[raw_cpu_id] = CpuPurpose::kNone;
       }
     }
-    void AssignCpusNotAssignedToGeneralPurpose(){
+    void AssignCpusNotAssignedToGeneralPurpose() {
       int len = GetHowManyCpus();
-      for(int i = 0; i < len; i++){
-        if(cpu_purpose_map[i] == CpuPurpose::kNone){
+      for(int i = 0; i < len; i++) {
+        if(cpu_purpose_map[i] == CpuPurpose::kNone) {
           RetainCpuId(i, CpuPurpose::kGeneralPurpose);
         }
       }
@@ -103,10 +103,10 @@ class CpuCtrl : public CpuCtrlInterface {
       }
       return kCpuIdNotFound;
     }
-    int GetCpuIdLessAssignedFor(CpuPurpose p){
+    int GetCpuIdLessAssignedFor(CpuPurpose p) {
       int minCount = -1, minId = kCpuIdNotFound;
       int len = GetHowManyCpus();
-      for(int i = 0; i < len; i++){
+      for(int i = 0; i < len; i++) {
         if(cpu_purpose_map[i] == p &&
             (minCount == -1 || cpu_purpose_count[i] < minCount)){
           minCount = cpu_purpose_count[i];
@@ -115,8 +115,8 @@ class CpuCtrl : public CpuCtrlInterface {
       }
       return minId;
     }
-    void RetainCpuId(int cpuid, CpuPurpose p){
-      if(cpu_purpose_map[cpuid] != p){
+    void RetainCpuId(int cpuid, CpuPurpose p) {
+      if(cpu_purpose_map[cpuid] != p) {
         cpu_purpose_map[cpuid] = p;
         cpu_purpose_count[cpuid] = 0;
       }

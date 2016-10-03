@@ -28,10 +28,10 @@
 // CpuId
 //
 
-uint8_t CpuId::GetApicId(){
+uint8_t CpuId::GetApicId() {
   return apic_ctrl->GetApicIdFromCpuId(rawid);
 }
-bool CpuId::IsValid(){
+bool CpuId::IsValid() {
   return (rawid >= 0 && rawid < cpu_ctrl->GetHowManyCpus());
 }
 
@@ -51,18 +51,18 @@ inline int CpuCtrl::GetHowManyCpus()
 CpuPurpose CpuCtrl::cpu_purpose_map[ApicCtrl::lapicMaxNumber];
 int CpuCtrl::cpu_purpose_count[ApicCtrl::lapicMaxNumber];
 
-inline CpuId CpuCtrl::RetainCpuIdForPurpose(CpuPurpose p){
+inline CpuId CpuCtrl::RetainCpuIdForPurpose(CpuPurpose p) {
   // Returns valid CpuId all time.
   // boot processor is always assigned to kLowPriority
   if(p == CpuPurpose::kLowPriority) return kCpuIdBootProcessor;
   int cpu_id;
   cpu_id = GetCpuIdNotAssigned();
-  if(cpu_id != kCpuIdNotFound){
+  if(cpu_id != kCpuIdNotFound) {
     RetainCpuId(cpu_id, p);
     return CpuId(cpu_id);
   }
   cpu_id = GetCpuIdLessAssignedFor(p);
-  if(cpu_id != kCpuIdNotFound){
+  if(cpu_id != kCpuIdNotFound) {
     RetainCpuId(cpu_id, p);
     return CpuId(cpu_id);
   }

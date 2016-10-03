@@ -43,7 +43,7 @@ class Polling {
     if (_state == PollingState::kPolling) {
       return;
     }
-    _cpuid = cpuid.GetRawId();
+    _cpuid = cpuid;
     _state = PollingState::kPolling;
     task_ctrl->Register(_cpuid, &_task);
   }
@@ -64,7 +64,7 @@ class Polling {
     }
   }
   PollingState _state = PollingState::kStopped;
-  int _cpuid = -1;
+  CpuId _cpuid;
   Task _task;
 };
 

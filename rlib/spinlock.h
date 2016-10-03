@@ -24,13 +24,14 @@
 #define __RAPH_KERNEL_SPINLOCK_H__
 
 #include <stdint.h>
+#include <cpu.h>
 
 class SpinLockInterface {
 public:
   SpinLockInterface() {}
   virtual ~SpinLockInterface() {}
   virtual volatile unsigned int GetFlag() = 0;
-  virtual volatile int GetProcId() = 0;
+  virtual CpuId GetProcId() = 0;
   virtual void Lock() = 0;
   virtual void Unlock() = 0;
   virtual int Trylock() = 0;
@@ -45,8 +46,8 @@ public:
   virtual volatile unsigned int GetFlag() override {
     return _flag;
   }
-  virtual volatile int GetProcId() override {
-    return _id;
+  virtual CpuId GetProcId() override {
+    return _cpuid;
   }
   virtual void Lock() override;
   virtual void Unlock() override;
@@ -59,7 +60,7 @@ protected:
     return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
   }
   volatile unsigned int _flag = 0;
-  volatile int _id;
+  CpuId _cpuid;
 };
 
 #ifdef __KERNEL__
@@ -73,8 +74,8 @@ public:
   virtual volatile unsigned int GetFlag() override {
     return _flag;
   }
-  virtual volatile int GetProcId() override {
-    return _id;
+  virtual CpuId GetProcId() override {
+    return _cpuid;
   }
   virtual void Lock() override;
   virtual void Unlock() override;
@@ -89,7 +90,7 @@ protected:
   void DisableInt();
   void EnableInt();
   volatile unsigned int _flag = 0;
-  volatile int _id;
+  CpuId _cpuid;
   bool _did_stop_interrupt = false;
 };
 #else

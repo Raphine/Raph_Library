@@ -35,26 +35,27 @@ void SpinLock::Lock() {
   kassert(idt->GetHandlingCnt() == 0);
 #endif // __KERNEL__
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetCpuId().GetRawId());
+    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
   }
   volatile unsigned int flag = GetFlag();
   while((flag % 2) == 1 || !SetFlag(flag, flag + 1)) {
     flag = GetFlag();
   }
-  _id = cpu_ctrl->GetCpuId().GetRawId();
+  _cpuid = cpu_ctrl->GetCpuId();
 }
 
 void DebugSpinLock::Lock() {
   kassert(_key == kKey);
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetCpuId().GetRawId());
+    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
   }
   SpinLock::Lock();
 }
 
 void SpinLock::Unlock() {
   kassert((_flag % 2) == 1);
-  _id = -1;
+  CpuId not_found_id;
+  _cpuid = not_found_id;
   _flag++;
 }
 
@@ -70,7 +71,7 @@ int SpinLock::Trylock() {
 #ifdef __KERNEL__
 void IntSpinLock::Lock() {
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetCpuId().GetRawId());
+    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
   }
   volatile unsigned int flag = GetFlag();
   while(true) {
@@ -83,12 +84,12 @@ void IntSpinLock::Lock() {
     }
     flag = GetFlag();
   }
-  _id = cpu_ctrl->GetCpuId().GetRawId();
+  _cpuid = cpu_ctrl->GetCpuId();
 }
 
 void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
-  _id = -1;
+  _cpuid = CpuId();
   _flag++;
   this->EnableInt();
 }
