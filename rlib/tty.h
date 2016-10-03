@@ -34,6 +34,24 @@
 
 class Tty {
  public:
+  enum class Color : uint8_t {
+    kBlack,
+    kBlue,
+    kGreen,
+    kCyan,
+    kRed,
+    kMagenta,
+    kBrown,
+    kLightGray,
+    kDarkGray,
+    kLightBlue,
+    kLightGreen,
+    kLightCyan,
+    kLightRed,
+    kLightMagenta,
+    kLightBrown,
+    kWhite
+  };
   Tty() {
   }
   void Init() {
@@ -87,6 +105,8 @@ class Tty {
     Locker locker(_lock);
     PrintString(&str);
   }
+  virtual void SetColor(Color) = 0;
+  virtual void ResetColor() = 0;
  protected:
   virtual void Write(uint8_t c) = 0;
   int _cx = 0;
