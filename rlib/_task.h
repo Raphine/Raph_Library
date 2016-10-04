@@ -23,10 +23,13 @@
 #ifndef __RAPH_LIB__TASK_H__
 #define __RAPH_LIB__TASK_H__
 
+#include <setjmp.h>
 #include <global.h>
 #include <function.h>
 #include <spinlock.h>
 #include <timer.h>
+
+class TaskThread;
 
 class Task {
 public:
@@ -45,15 +48,15 @@ public:
   Status GetStatus() {
     return _status;
   }
+  void Execute(jmp_buf buf);
 private:
-  void Execute() {
-    _func.Execute(this);
-  }
+  void ExecuteSub();
   FunctionBase2<Task> _func;
   Task *_next;
   Task *_prev;
+  TaskThread *_thread;
   Status _status = Status::kOutOfQueue;
-  friend TaskCtrl;
+  friend TaskCtrl;  // TODO should be removed
 };
  
 // Taskがキューに積まれている間にインクリメント可能

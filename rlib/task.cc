@@ -26,6 +26,7 @@
 
 #ifdef __KERNEL__
 #include <apic.h>
+#include <mem/kstack.h>
 #else
 #include <raph.h>
 #include <unistd.h>
@@ -33,37 +34,15 @@
 
 void TaskCtrl::Setup() {
   int cpus = cpu_ctrl->GetHowManyCpus();
-  _task_struct = reinterpret_cast<TaskStruct *>(virtmem_ctrl->Alloc(sizeof(TaskStruct) * cpus));
-  Task *t;
+  _task_struct = new TaskStruct[cpus];
   for (int i = 0; i < cpus; i++) {
     new(&_task_struct[i]) TaskStruct;
-
-    t = virtmem_ctrl->New<Task>();
-    t->_status = Task::Status::kGuard;
-    t->_next = nullptr;
-    t->_prev = nullptr;
-
-    _task_struct[i].top = t;
-    _task_struct[i].bottom = t;
-
-    t = virtmem_ctrl->New<Task>();
-    t->_status = Task::Status::kGuard;
-    t->_next = nullptr;
-    t->_prev = nullptr;
-
-    _task_struct[i].top_sub = t;
-    _task_struct[i].bottom_sub = t;
-
-    _task_struct[i].state = TaskQueueState::kNotStarted;
-
-    Callout *dt = virtmem_ctrl->New<Callout>();
-    dt->_next = nullptr;
-    _task_struct[i].dtop = dt;
   }
 }
 
-void TaskCtrl::RunSub(TaskThread *thread) {
+void TaskCtrl::Run() {
   int cpuid = cpu_ctrl->GetId();
+  jmp_buf djbuf;
   _task_struct[cpuid].state = TaskQueueState::kNotRunning;
 #ifdef __KERNEL__
   apic_ctrl->SetupTimer(kTaskExecutionInterval);
@@ -133,7 +112,8 @@ void TaskCtrl::RunSub(TaskThread *thread) {
           t->_next = nullptr;
           t->_prev = nullptr;
         }
-        t->Execute();
+
+        t->Execute(djbuf);
 
         {
           Locker locker(_task_struct[cpuid].lock);
@@ -177,24 +157,16 @@ void TaskCtrl::RunSub(TaskThread *thread) {
   }
 }
 
-void TaskCtrl::Run() {
-  DefaultTaskThread thread;
-  {
-    int cpuid = cpu_ctrl->GetId();
-    Locker locker(_task_struct[cpuid].dlock);
-    _task_struct[cpuid].running_thread.Push(&thread);
-  }
-  RunSub(&thread);
-}
-
 void TaskCtrl::Register(int cpuid, Task *task) {
   if (!cpu_ctrl->IsValidId(cpuid)) {
     return;
   }
+  // TODO should'nt we add SpinLock to Task?
   Locker locker(_task_struct[cpuid].lock);
   if (task->_status == Task::Status::kWaitingInQueue) {
     return;
   }
+  task->_thread = _task_struct[cpuid].GetDefaultThread();
   task->_next = nullptr;
   task->_status = Task::Status::kWaitingInQueue;
   _task_struct[cpuid].bottom_sub->_next = task;
@@ -245,29 +217,16 @@ void TaskCtrl::Remove(Task *task) {
   task->_status = Task::Status::kOutOfQueue;  
 }
 
-#ifdef __KERNEL__
 void TaskCtrl::Wait() {
   // TODO
   // detect if lock acquired in current task
   // it will cause deadlock
 }
 
-#include <mem/kstack.h>
-
-TaskCtrl::TaskThread(const bool allocate) : _container(this), _allocated(allocate) {
-  if (allocate) {
-    KernelStackCtrl::GetCtrl().AllocThreadStack(cpu_ctrl->GetId());
-  }
+TaskThread::TaskThread() {
+  _stack = KernelStackCtrl::GetCtrl().AllocThreadStack(cpu_ctrl->GetId());
+  
 }
-
-#else
-
-TaskCtrl::TaskThread(const bool allocate) : _container(this), _allocated(allocate) {
-  // currently dynamic allocated thread is not supported
-  assert(!allocate);
-}
-
-#endif // __KERNEL__
 
 
 void TaskCtrl::RegisterCallout(Callout *task) {
@@ -394,5 +353,50 @@ void Callout::HandleSub(Task *, void *) {
     _state = CalloutState::kStopped;
   } else {
     task_ctrl->Register(cpu_ctrl->GetId(), &_task);
+  }
+}
+
+TaskCtrl::TaskStruct::TaskStruct() {
+  DefaultTaskThread thread;
+  _default_thread = &thread;
+      
+  Task *t = new Task;
+  t->_status = Task::Status::kGuard;
+  t->_next = nullptr;
+  t->_prev = nullptr;
+
+  top = t;
+  bottom = t;
+
+  t = new Task;
+  t->_status = Task::Status::kGuard;
+  t->_next = nullptr;
+  t->_prev = nullptr;
+
+  top_sub = t;
+  bottom_sub = t;
+
+  state = TaskQueueState::kNotStarted;
+
+  Callout *dt = new Callout;
+  dt->_next = nullptr;
+  dtop = dt;
+}
+
+void Task::Execute(jmp_buf buf) {
+  if (setjmp(buf) == 0) {
+    longjmp(_buf, 1);
+    // jump to Task::ExecuteSub()
+  } else {
+    return;
+  }
+}
+
+
+void Task::ExecuteSub() {
+  if (setjmp(_buf) == 0) {
+  } else {
+    _func.Execute(this);
+    どこにlongjmp?;
   }
 }

@@ -26,6 +26,18 @@
 #include "_task.h"
 #include "_queue.h"
 
+class TaskThread {
+public:
+  TaskThread();
+  virtual ~TaskThread() {
+  }
+  virtual void Wait() {
+    
+  }
+private:
+  virt_addr _stack;
+};
+
 class TaskCtrl {
 public:
   enum class TaskQueueState {
@@ -51,22 +63,10 @@ public:
   void RegisterCallout(Callout *task);
   void CancelCallout(Callout *task);
   void ForceWakeup(int cpuid);
-  class TaskThread : public IntQueue<TaskThread>::ContainerInterface {
+    
+  class TaskStruct {
   public:
-    TaskThread(const bool allocate);
-    virtual ~TaskThread() {
-    }
-    virtual bool Enable();
-  private:
-    TaskThread();
-    virtual IntQueue<TaskThread>::Container *GetIntQueueContainer() override {
-      return &_container;
-    }
-    IntQueue<TaskThread>::Container _container;
-    const bool _allocated;
-  };
-  void RunSub(TaskThread *thread);
-  struct TaskStruct {
+    TaskStruct();
     // queue
     Task *top;
     Task *bottom;
@@ -80,8 +80,17 @@ public:
     IntSpinLock dlock;
     Callout *dtop;
 
-    IntQueue<TaskThread> waiting_thread;
-    IntQueue<TaskThread> running_thread;
+    TaskThread *GetDefaultThread() {
+      return _default_thread;
+    }
+  private:
+    class DefaultTaskThread : public TaskThread {
+    private:
+      virtual void Wait() override {
+        kernel_panic("TaskThread", "cannot switch task in default stack.");
+      }
+    };
+    DefaultTaskThread *_default_thread;
   } *_task_struct = nullptr;
   // this const value defines interval of wakeup task controller when all task slept
   // (task controller doesn't sleep if there is any registered tasks)
