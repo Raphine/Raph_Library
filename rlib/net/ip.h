@@ -39,8 +39,8 @@ public:
   static const uint8_t kPktReliability = 7 << 2;
 
   /** packet flag */
-  static const uint8_t kFlagNoFragment   = 1 << 2;
-  static const uint8_t kFlagMoreFragment = 1 << 1;
+  static const uint16_t kFlagNoFragment   = 1 << 14;
+  static const uint16_t kFlagMoreFragment = 1 << 13;
 
   /** layer 4 protocols */
   static const uint8_t kProtocolTcp = 0x06;
@@ -52,18 +52,17 @@ public:
    * IPv4 header
    */
   struct Header {
-    uint8_t hlen: 4;           /** IP header length */
-    uint8_t ver: 4;            /** version */
-    uint8_t type;              /** type of service */
-    uint16_t total_len;        /** total length of IPv4 packet */
-    uint16_t id;               /** identification */
-    uint8_t flag: 3;           /** MF(1bit) | NF(1bit) | Reserved(1bit) */
-    uint16_t frag_offset: 13;  /** fragment offset (low) */
-    uint8_t ttl;               /** time to live */
-    uint8_t pid;               /** layer 4 protocol ID */
-    uint16_t checksum;         /** header checksum */
-    uint32_t saddr;            /** source address */
-    uint32_t daddr;            /** destination address */
+    uint8_t hlen: 4;       /** IP header length */
+    uint8_t ver: 4;        /** version */
+    uint8_t type;          /** type of service */
+    uint16_t total_len;    /** total length of IPv4 packet */
+    uint16_t id;           /** identification */
+    uint16_t frag_offset;  /** Rsv | DF | MF | fragment offset (13bit) */
+    uint8_t ttl;           /** time to live */
+    uint8_t pid;           /** layer 4 protocol ID */
+    uint16_t checksum;     /** header checksum */
+    uint32_t saddr;        /** source address */
+    uint32_t daddr;        /** destination address */
   } __attribute__((packed));
 
   /**
@@ -104,7 +103,7 @@ public:
     uint8_t *buf = reinterpret_cast<uint8_t *>(header);
     uint64_t sum = 0;
   
-    while(size > 1) {
+    while (size > 1) {
       sum += *reinterpret_cast<uint16_t*>(buf);
       buf += 2;
       if(sum & 0x80000000) {
@@ -114,17 +113,26 @@ public:
       size -= 2;
     }
   
-    if(size) {
+    if (size) {
       // take care of left over byte
       sum += static_cast<uint16_t>(*buf);
     }
    
-    while(sum >> 16) {
+    while (sum >> 16) {
       sum = (sum & 0xFFFF) + (sum >> 16);
     }
   
     return ~sum;
   }
+
+  /**
+   * Get hardware destination address from IPv4 address embedded in the packet.
+   *
+   * @param packet IPv4 packet.
+   * @param addr found hardware address.
+   * @return if hardware address found in ARP table.
+   */
+  static bool GetHardwareDestinationAddress(NetDev::Packet *packet, uint8_t *addr);
 
 protected:
   /**
@@ -169,7 +177,7 @@ private:
   uint16_t _id = 0;
 
   /** time to live (number of hops) */
-  uint8_t _ttl = 16;
+  uint8_t _ttl = 64;
 
   void ResetPeerAddress() {
     _peer_addr = kAddressNotSet;

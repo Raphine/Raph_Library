@@ -22,6 +22,7 @@
 
 
 #include <net/ip.h>
+#include <net/arp.h>
 
 
 bool Ipv4Layer::FilterPacket(NetDev::Packet *packet) {
@@ -51,19 +52,23 @@ bool Ipv4Layer::PreparePacket(NetDev::Packet *packet) {
   Ipv4Layer::Header *header = reinterpret_cast<Ipv4Layer::Header *>(packet->buf);
 
   header->hlen = sizeof(Ipv4Layer::Header) >> 2;
-  header->ver = kIpVersion << 4;
-  header->type = kPktPriority | kPktDelay | kPktThroughput | kPktReliability;
+  header->ver = kIpVersion;
+  header->type = 0;
   header->total_len = htons(packet->len);
   header->id = _id++;
-  header->flag = kFlagNoFragment;
-  header->frag_offset = 0;
+  header->frag_offset = htons(kFlagNoFragment);
   header->ttl = _ttl;
   header->pid = _upper_protocol;
   header->checksum = 0;
   header->saddr = htonl(_ipv4_addr);
   header->daddr = htonl(_peer_addr);
 
-  header->checksum = htons(Ipv4Layer::CheckSum(header, sizeof(Ipv4Layer::Header)));
+  header->checksum = Ipv4Layer::CheckSum(header, sizeof(Ipv4Layer::Header));
 
   return true;
+}
+
+bool Ipv4Layer::GetHardwareDestinationAddress(NetDev::Packet *packet, uint8_t *addr) {
+  Ipv4Layer::Header *header = reinterpret_cast<Ipv4Layer::Header *>(packet->buf);
+  return arp_table->Find(ntohl(header->daddr), addr);
 }

@@ -22,6 +22,7 @@
 
 #include <net/eth.h>
 #include <net/arp.h>
+#include <net/ip.h>
 
 
 const uint8_t EthernetLayer::kArpRequestMacAddress[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -53,7 +54,18 @@ bool EthernetLayer::PreparePacket(NetDev::Packet *packet) {
       AttachProtocolHeader(packet);
       break;
 
-    case kProtocolIpv4:
+    case kProtocolIpv4: {
+      DetachProtocolHeader(packet);
+      bool found = Ipv4Layer::GetHardwareDestinationAddress(packet, header->daddr);
+      AttachProtocolHeader(packet);
+
+      if (!found) {
+        return false;
+      }
+
+      break;
+    }
+
     default:
       return false;
   }
