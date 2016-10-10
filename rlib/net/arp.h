@@ -48,15 +48,6 @@ public:
   static const uint16_t kOpReply   = 0x0002;
 
   /**
-   * Manually assign IPv4 address.
-   *
-   * @param ipv4_address
-   */
-  void AssignIpv4Address(uint32_t ipv4_addr) {
-    _ipv4_addr = ipv4_addr;
-  }
-
-  /**
    * Reserve the connection on protocol stack and construct the stack.
    *
    * @return 0 if succeeeds.
@@ -121,6 +112,13 @@ public:
     } else {
       return -1;
     }
+  }
+
+  /**
+   * Update information of the interface, e.g., IP address.
+   */
+  virtual void Update() {
+    assert(GetIpv4Address(_ipv4_addr));
   }
 
 private:

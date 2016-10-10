@@ -44,13 +44,11 @@ public:
   virtual int Open() override;
 
   /**
-   * Bind address info to this socket.
+   * Bind port to this socket.
    *
-   * @param ipv4_addr
    * @param port
    */
-  void BindAddress(uint32_t ipv4_addr, uint16_t port) {
-    _ipv4_addr = ipv4_addr;
+  void BindPort(uint16_t port) {
     _port = port;
   }
 
@@ -91,6 +89,13 @@ public:
 
       return this->TransmitPacket(packet) ? len : -1;
     }
+  }
+
+  /**
+   * Update information of the interface.
+   */
+  virtual void Update() {
+    assert(GetIpv4Address(_ipv4_addr));
   }
 
 private:

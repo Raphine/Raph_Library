@@ -60,12 +60,25 @@ public:
     strncpy(_ifname, ifname, kIfNameLength);
   }
 
+  /**
+   * Update information of the interface, e.g., IP address.
+   */
+  virtual void Update() {}
+
 protected:
   // same constants exists in NetDevCtrl, should we merge?
   static const int kIfNameLength = 16;
 
   /** network interface name */
   char _ifname[kIfNameLength];
+
+  /**
+   * Get IPv4 address of the interface.
+   *
+   * @param addr buffer to return address.
+   * @return if the interface supports IPv4 or not.
+   */
+  bool GetIpv4Address(uint32_t &addr);
 };
 
 
