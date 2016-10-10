@@ -34,7 +34,9 @@
  */
 class Socket : public ProtocolStackLayer {
 public:
-  Socket() {}
+  Socket() {
+    strcpy(_ifname, "en0");
+  }
 
   /**
    * Reserve the connection on protocol stack and construct the stack.
@@ -47,6 +49,23 @@ public:
 
     return true;
   }
+
+  /**
+   * Assign network device, specified by interface name.
+   * Network device fetching is done during Socket::Open.
+   *
+   * @param ifname interface name.
+   */
+  void AssignNetworkDevice(const char *ifname) {
+    strncpy(_ifname, ifname, kIfNameLength);
+  }
+
+protected:
+  // same constants exists in NetDevCtrl, should we merge?
+  static const int kIfNameLength = 16;
+
+  /** network interface name */
+  char _ifname[kIfNameLength];
 };
 
 

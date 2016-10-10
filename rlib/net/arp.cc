@@ -26,7 +26,7 @@
 #include <dev/eth.h>
 
 int ArpSocket::Open() {
-  NetDevCtrl::NetDevInfo *devinfo = netdev_ctrl->GetDeviceInfo();
+  NetDevCtrl::NetDevInfo *devinfo = netdev_ctrl->GetDeviceInfo(_ifname);
   DevEthernet *device = static_cast<DevEthernet *>(devinfo->device);
   ProtocolStack *pstack = devinfo->ptcl_stack;
 
