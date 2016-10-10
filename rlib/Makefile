@@ -1,4 +1,4 @@
-OBJS = net.o task.o functional.o spinlock.o libglobal.o thread.o mem/uvirtmem.o tty.o queue.o
+OBJS = net.o task.o spinlock.o libglobal.o thread.o mem/uvirtmem.o tty.o queue.o
 
 DEPS= $(filter %.d, $(subst .o,.d, $(OBJS)))
 
