@@ -23,42 +23,49 @@
 #ifndef __RAPH_LIB__TASK_H__
 #define __RAPH_LIB__TASK_H__
 
-#include <setjmp.h>
+#include <raph.h>
 #include <global.h>
 #include <function.h>
 #include <spinlock.h>
 #include <timer.h>
 
-class TaskThread;
-
 class Task {
 public:
-  Task() {
-  }
-  virtual ~Task();
-  void SetFunc(const GenericFunction2<Task> &func) {
-    _func.Copy(func);
-  }
   enum class Status {
     kRunning,
     kWaitingInQueue,
     kOutOfQueue,
     kGuard,
   };
+  Task() {
+  }
+  virtual ~Task() {
+    kassert(_status == Status::kOutOfQueue);
+  }
+  virtual void SetFunc(const GenericFunction &func) {
+    _func.Copy(func);
+  }
   Status GetStatus() {
     return _status;
   }
-  void Execute(jmp_buf buf);
+  virtual void Execute() {
+    _func.Execute();
+  }
+  virtual void Wait() {
+    kernel_panic("Task", "unable to use blocking operation(use TaskWithStack instead)");
+  }
+  virtual void Kill() {
+    kernel_panic("Task", "unable to kill normal Task");
+  }
 private:
-  void ExecuteSub();
-  FunctionBase2<Task> _func;
+  FunctionBase _func;
   Task *_next;
   Task *_prev;
-  TaskThread *_thread;
+  int _cpuid;
   Status _status = Status::kOutOfQueue;
   friend TaskCtrl;  // TODO should be removed
 };
- 
+
 // Taskがキューに積まれている間にインクリメント可能
 // 割り込み内からも呼び出せる
 // ただし、一定時間後に立ち上げる事や割り当てcpuidを変える事はできない
@@ -67,7 +74,7 @@ public:
   CountableTask() {
     _cnt = 0;
     _cpuid = -1;
-    ClassFunction2<CountableTask, Task> func;
+    ClassFunction<CountableTask> func;
     func.Init(this, &CountableTask::HandleSub, nullptr);
     _task.SetFunc(func);
   }
@@ -82,7 +89,7 @@ public:
   }
   void Inc();
 private:
-  void HandleSub(Task *, void *);
+  void HandleSub(void *);
   Task _task;
   IntSpinLock _lock;
   FunctionBase _func;
@@ -102,7 +109,7 @@ public:
     kStopped,
   };
   Callout() {
-    ClassFunction2<Callout, Task> func;
+    ClassFunction<Callout> func;
     func.Init(this, &Callout::HandleSub, nullptr);
     _task.SetFunc(func);
   }
@@ -124,7 +131,7 @@ public:
     return _pending;
   }
 private:
-  void HandleSub(Task *, void *);
+  void HandleSub(void *);
   int _cpuid;
   Task _task;
   uint64_t _time;

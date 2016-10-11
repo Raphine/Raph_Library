@@ -23,19 +23,53 @@
 #ifndef __RAPH_LIB_TASK_H__
 #define __RAPH_LIB_TASK_H__
 
+#include <setjmp.h>
 #include "_task.h"
 #include "_queue.h"
 
-class TaskThread {
+// enable to blocking operation
+class TaskWithStack : public Task {
 public:
-  TaskThread();
-  virtual ~TaskThread() {
+  class TaskThread {
+  public:
+    TaskThread() {
+    }
+    void Init();
+    void SetFunc(const GenericFunction &func) {
+      _func.Copy(func);
+    }
+    ~TaskThread() {
+    }
+    void InitBuffer();
+    void Wait();
+    void SwitchTo();
+  private:  
+    virt_addr _stack;
+    jmp_buf _buf;
+    jmp_buf _return_buf;
+    FunctionBase _func;
+  };
+  TaskWithStack() {
   }
-  virtual void Wait() {
-    
+  virtual ~TaskWithStack() {
+  }
+  void Init() {
+    _tthread.Init();
+  }
+  virtual void SetFunc(const GenericFunction &func) override {
+    _tthread.SetFunc(func);
+  }
+  virtual void Execute() override {
+    _tthread.SwitchTo();
+  }
+  virtual void Wait() override {
+    _tthread.Wait();
+  }
+  virtual void Kill() override {
+    kernel_panic("TaskWithStack", "not implemented");
   }
 private:
-  virt_addr _stack;
+  TaskThread _tthread;
 };
 
 class TaskCtrl {
@@ -80,17 +114,6 @@ public:
     IntSpinLock dlock;
     Callout *dtop;
 
-    TaskThread *GetDefaultThread() {
-      return _default_thread;
-    }
-  private:
-    class DefaultTaskThread : public TaskThread {
-    private:
-      virtual void Wait() override {
-        kernel_panic("TaskThread", "cannot switch task in default stack.");
-      }
-    };
-    DefaultTaskThread *_default_thread;
   } *_task_struct = nullptr;
   // this const value defines interval of wakeup task controller when all task slept
   // (task controller doesn't sleep if there is any registered tasks)

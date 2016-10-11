@@ -42,7 +42,6 @@ void TaskCtrl::Setup() {
 
 void TaskCtrl::Run() {
   int cpuid = cpu_ctrl->GetId();
-  jmp_buf djbuf;
   _task_struct[cpuid].state = TaskQueueState::kNotRunning;
 #ifdef __KERNEL__
   apic_ctrl->SetupTimer(kTaskExecutionInterval);
@@ -113,7 +112,7 @@ void TaskCtrl::Run() {
           t->_prev = nullptr;
         }
 
-        t->Execute(djbuf);
+        t->Execute();
 
         {
           Locker locker(_task_struct[cpuid].lock);
@@ -158,6 +157,10 @@ void TaskCtrl::Run() {
 }
 
 void TaskCtrl::Register(int cpuid, Task *task) {
+  if (!(task->_status == Task::Status::kOutOfQueue ||
+        (task->_status == Task::Status::kRunning && task->_cpuid == cpuid))) {
+    kernel_panic("TaskCtrl", "unable to register queued Task.");
+  }
   if (!cpu_ctrl->IsValidId(cpuid)) {
     return;
   }
@@ -166,9 +169,9 @@ void TaskCtrl::Register(int cpuid, Task *task) {
   if (task->_status == Task::Status::kWaitingInQueue) {
     return;
   }
-  task->_thread = _task_struct[cpuid].GetDefaultThread();
   task->_next = nullptr;
   task->_status = Task::Status::kWaitingInQueue;
+  task->_cpuid = cpuid;
   _task_struct[cpuid].bottom_sub->_next = task;
   task->_prev = _task_struct[cpuid].bottom_sub;
   _task_struct[cpuid].bottom_sub = task;
@@ -223,11 +226,49 @@ void TaskCtrl::Wait() {
   // it will cause deadlock
 }
 
-TaskThread::TaskThread() {
-  _stack = KernelStackCtrl::GetCtrl().AllocThreadStack(cpu_ctrl->GetId());
-  
+extern "C" {
+  static void initialize_TaskThread(TaskWithStack::TaskThread *t) {
+    t->InitBuffer();
+  }
 }
 
+void TaskWithStack::TaskThread::Init() {
+  _stack = KernelStackCtrl::GetCtrl().AllocThreadStack(cpu_ctrl->GetId());
+  if (setjmp(_return_buf) == 0) {
+    asm volatile("movq %0, %%rsp;"
+                 "call initialize_TaskThread;"
+                 :: "r"(_stack), "D"(this));
+  }
+  // return from TaskThread::InitBuffer()
+}
+
+void TaskWithStack::TaskThread::InitBuffer() {
+  if (setjmp(_buf) == 0) {
+    longjmp(_return_buf, 1);
+    // return back to TaskThread::Init()
+  } else {
+    // call from TaskThread::SwitchTo()
+    while(true) {
+      _func.Execute();
+      Wait();
+    }
+  }
+  kernel_panic("TaskThread", "unexpectedly ended.");
+}
+
+void TaskWithStack::TaskThread::Wait() {
+  if (setjmp(_buf) == 0) {
+    longjmp(_return_buf, 1);
+  }
+}
+
+void TaskWithStack::TaskThread::SwitchTo() {
+  // TODO have to set current cpuid
+  kassert(false);
+  if (setjmp(_return_buf) == 0) {
+    longjmp(_buf, 1);
+  }
+}
 
 void TaskCtrl::RegisterCallout(Callout *task) {
   int cpuid = task->_cpuid;
@@ -300,10 +341,6 @@ void TaskCtrl::ForceWakeup(int cpuid) {
 #endif // __KERNEL__
 }
 
-Task::~Task() {
-  kassert(_status == Status::kOutOfQueue);
-}
-
 void CountableTask::Inc() {
   if (!cpu_ctrl->IsValidId(_cpuid)) {
     return;
@@ -316,7 +353,7 @@ void CountableTask::Inc() {
   }
 }
 
-void CountableTask::HandleSub(Task *, void *) {
+void CountableTask::HandleSub(void *) {
   _func.Execute();
   {
     Locker locker(_lock);
@@ -345,7 +382,7 @@ void Callout::Cancel() {
   task_ctrl->CancelCallout(this);
 }
 
-void Callout::HandleSub(Task *, void *) {
+void Callout::HandleSub(void *) {
   if (timer->IsTimePassed(_time)) {
     _pending = false;
     _state = CalloutState::kHandling;
@@ -357,9 +394,6 @@ void Callout::HandleSub(Task *, void *) {
 }
 
 TaskCtrl::TaskStruct::TaskStruct() {
-  DefaultTaskThread thread;
-  _default_thread = &thread;
-      
   Task *t = new Task;
   t->_status = Task::Status::kGuard;
   t->_next = nullptr;
@@ -381,22 +415,4 @@ TaskCtrl::TaskStruct::TaskStruct() {
   Callout *dt = new Callout;
   dt->_next = nullptr;
   dtop = dt;
-}
-
-void Task::Execute(jmp_buf buf) {
-  if (setjmp(buf) == 0) {
-    longjmp(_buf, 1);
-    // jump to Task::ExecuteSub()
-  } else {
-    return;
-  }
-}
-
-
-void Task::ExecuteSub() {
-  if (setjmp(_buf) == 0) {
-  } else {
-    _func.Execute(this);
-    どこにlongjmp?;
-  }
 }

@@ -36,20 +36,20 @@ class FunctionalBase {
     kNotFunctioning,
   };
   FunctionalBase() {
-    Function2<Task> func;
+    Function func;
     func.Init(Handle, reinterpret_cast<void *>(this));
     _task.SetFunc(func);
   }
   virtual ~FunctionalBase() {
   }
-  void SetFunction(int cpuid, const GenericFunction2<Task> &func);
+  void SetFunction(int cpuid, const GenericFunction &func);
  protected:
   void WakeupFunction();
   // check whether Functional needs to process function
   virtual bool ShouldFunc() = 0;
  private:
-  static void Handle(Task *, void *p);
-  FunctionBase2<Task> _func;
+  static void Handle(void *p);
+  FunctionBase _func;
   Task _task;
   int _cpuid = 0;
   L _lock;
@@ -70,10 +70,10 @@ void FunctionalBase<L>::WakeupFunction() {
 }
 
 template<class L>
-void FunctionalBase<L>::Handle(Task *t, void *p) {
+void FunctionalBase<L>::Handle(void *p) {
   FunctionalBase<L> *that = reinterpret_cast<FunctionalBase<L> *>(p);
   if (that->ShouldFunc()) {
-    that->_func.Execute(t);
+    that->_func.Execute();
   }
   {
     Locker locker(that->_lock);
@@ -86,7 +86,7 @@ void FunctionalBase<L>::Handle(Task *t, void *p) {
 }
 
 template<class L>
-void FunctionalBase<L>::SetFunction(int cpuid, const GenericFunction2<Task> &func) {
+void FunctionalBase<L>::SetFunction(int cpuid, const GenericFunction &func) {
   kassert(!_func.CanExecute());
   _cpuid = cpuid;
   _func.Copy(func);

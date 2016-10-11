@@ -29,9 +29,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-  typedef struct {
-    size_t _buf[8];
-  } jmp_buf;
+  typedef size_t jmp_buf[8];
   
   int setjmp(jmp_buf env);
   int longjmp(jmp_buf env, int val);

@@ -35,7 +35,7 @@ class Polling {
     kStopped,
   };
   Polling() {
-    ClassFunction2<Polling, Task> func;
+    ClassFunction<Polling> func;
     func.Init(this, &Polling::HandleSub, nullptr);
     _task.SetFunc(func);
   }
@@ -55,7 +55,7 @@ class Polling {
   }
   virtual void Handle() = 0;
  private:
-  void HandleSub(Task *t, void *) {
+  void HandleSub(void *) {
     if (_state == PollingState::kPolling) {
       Handle();
       task_ctrl->Register(_cpuid, &_task);

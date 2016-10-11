@@ -57,6 +57,7 @@ longjmp:
   // clear interrupt
   pushfq
   popq    %rcx
+  cli
 
   #endif /* __KERNEL__ */
   
