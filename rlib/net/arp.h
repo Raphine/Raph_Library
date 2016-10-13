@@ -39,7 +39,7 @@ public:
   struct Chunk {
     uint16_t operation;
     uint32_t ipv4_addr;
-  };
+  } __attribute__((packed));
 
   /** constant value for ARP request operation */
   static const uint16_t kOpRequest = 0x0001;
@@ -265,6 +265,49 @@ private:
    * @return index available.
    */
   uint32_t Probe(uint32_t s) { return (s + 1) & 0xff; }
+
+  /**
+   * Send ARP request.
+   * The requests are automatically sent from ArpTable::Find,
+   * in case that no MAC address corresponding to the request IPv4 address is found.
+   * The Corresponding reply is expected to be catched by "ARP server"
+   * established by kernel.
+   *
+   * @param ipaddr
+   * @return false if failed to open ArpSocket or send ARP request.
+   */
+  bool Request(uint32_t ipaddr);
+};
+
+
+/**
+ * ARP server, which replies to ARP requests received from public network
+ * and receives ARP replies in order to register to ARP table.
+ */
+class ArpServer {
+public:
+  ArpServer() {}
+
+  /**
+   * @param cpuid specify the core which will be assigned.
+   */
+  void SetCpuId(int cpuid) {
+    _cpuid = cpuid;
+  }
+
+  /**
+   * Setup ArpServer.
+   *
+   * @return if succeeds.
+   */
+  bool Setup();
+
+private:
+  /** socket */
+  static ArpSocket _socket;
+
+  /** CPU ID */
+  int _cpuid = 0;
 };
 
 

@@ -26,6 +26,8 @@
 #include <dev/eth.h>
 
 int ArpSocket::Open() {
+  this->Update();
+
   NetDevCtrl::NetDevInfo *devinfo = netdev_ctrl->GetDeviceInfo(_ifname);
   DevEthernet *device = static_cast<DevEthernet *>(devinfo->device);
   ProtocolStack *pstack = devinfo->ptcl_stack;
@@ -151,6 +153,7 @@ bool ArpTable::Find(uint32_t ipaddr, uint8_t *macaddr) {
   for (int i = 0; i < kMaxProbingNumber; i++) {
     if (_table[index].ipaddr == 0) {
       // does not exist
+      this->Request(ipaddr);
       return false;
     } else if (_table[index].ipaddr == ipaddr) {
       // record found
@@ -185,4 +188,45 @@ bool ArpTable::Exists(uint32_t ipaddr) {
   }
 
   return false;
+}
+
+
+bool ArpTable::Request(uint32_t ipaddr) {
+  ArpSocket socket;
+
+  if (socket.Open() < 0) {
+    return false;
+  }
+
+  if (socket.Request(ipaddr) < 0) {
+    return false;
+  }
+
+  return true;
+}
+
+
+// instantiate
+ArpSocket ArpServer::_socket;
+
+bool ArpServer::Setup() {
+  if (_socket.Open() < 0) {
+    return false;
+  }
+
+  Function callback;
+  callback.Init([](void *) {
+    uint32_t ipaddr;
+    uint16_t op;
+    _socket.Read(op, ipaddr); 
+
+    if (op == ArpSocket::kOpRequest) {
+      // automatically reply
+      _socket.Reply(ipaddr);
+    }
+  }, nullptr);
+
+  _socket.SetReceiveCallback(_cpuid, callback);
+
+  return true;
 }

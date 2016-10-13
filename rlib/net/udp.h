@@ -26,6 +26,7 @@
 
 #include <net/pstack.h>
 #include <net/socket.h>
+#include <net/arp.h>
 
 
 class UdpSocket : public Socket {
@@ -61,6 +62,12 @@ public:
   void BindPeer(uint32_t ipv4_addr, uint16_t port) {
     _peer_addr = ipv4_addr;
     _peer_port = port;
+
+    // prefetch by ARP request
+    ArpSocket arp;
+    if (arp.Open() >= 0) {
+      arp.Request(_peer_addr);
+    }
   }
 
   int Read(uint8_t *buf, int len) {
@@ -86,7 +93,6 @@ public:
     } else {
       memcpy(packet->buf, buf, len);
       packet->len = len;
-
       return this->TransmitPacket(packet) ? len : -1;
     }
   }

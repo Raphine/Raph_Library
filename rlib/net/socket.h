@@ -35,7 +35,9 @@
 class Socket : public ProtocolStackLayer {
 public:
   Socket() {
+    // TODO: find an available interface name
     strcpy(_ifname, "en0");
+    this->Update();
   }
 
   /**
@@ -58,6 +60,7 @@ public:
    */
   void AssignNetworkDevice(const char *ifname) {
     strncpy(_ifname, ifname, kIfNameLength);
+    this->Update();
   }
 
   /**
