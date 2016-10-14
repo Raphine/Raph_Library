@@ -37,12 +37,24 @@ public:
 
   UdpSocket() {}
 
+  virtual ~UdpSocket() {
+    this->Close();
+  }
+
   /**
    * Reserve the connection on protocol stack and construct the stack.
    *
    * @return 0 if succeeds.
    */
   virtual int Open() override;
+
+  /**
+   * Release resources reserved in Socket::Open().
+   * This function is tolerant of "double-calling".
+   *
+   * @return 0 if succeeeds.
+   */
+  virtual int Close() override;
 
   /**
    * Bind port to this socket.

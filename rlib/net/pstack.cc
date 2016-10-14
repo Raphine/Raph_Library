@@ -26,7 +26,7 @@
 
 bool ProtocolStack::SetBaseLayer(ProtocolStackBaseLayer *layer) {
   for (int i = 0; i < kMaxConnectionNumber; i++) {
-    if (!_base_layers[i]) {
+    if (_base_layers[i] == nullptr) {
       _base_layers[i] = layer;
       layer->SetProtocolStack(this);
 
@@ -36,6 +36,19 @@ bool ProtocolStack::SetBaseLayer(ProtocolStackBaseLayer *layer) {
 
   return false;
 }
+
+
+bool ProtocolStack::UnsetBaseLayer(ProtocolStackBaseLayer *layer) {
+  for (int i = 0; i < kMaxConnectionNumber; i++) {
+    if (_base_layers[i] == layer) {
+      _base_layers[i] = nullptr;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 
 /**
  * Callback which fetches newly arrived packets from the network device,
@@ -57,6 +70,7 @@ void ProtocolStack::DeviceBufferHandler(void *_) {
     _device->ReuseRxBuffer(packet);
   }
 }
+
 
 /**
  * Callback which fetches newly arrived packets from the main queue,

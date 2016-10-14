@@ -118,6 +118,14 @@ public:
   bool SetBaseLayer(ProtocolStackBaseLayer *layer);
 
   /**
+   * Unset a base layer.
+   *
+   * @param layer to be released.
+   * @return if successfully released. (otherwise no corresponding layer exists, etc.)
+   */
+  bool UnsetBaseLayer(ProtocolStackBaseLayer *layer);
+
+  /**
    * Transmit the packet to the network device.
    *
    * @param packet MUST be fetched by FetchTxBuffer in advance.
@@ -203,7 +211,16 @@ public:
     }
   }
 
-  virtual void Destroy() {}
+  /**
+   * Release the layer.
+   */
+  virtual void Destroy() {
+    if (_prev_layer != nullptr) {
+      _prev_layer->Destroy();
+      _prev_layer = nullptr;
+      this->DestroySubclass();
+    }
+  }
 
   /**
    * Return if it has child layer or not.
@@ -322,6 +339,13 @@ protected:
   }
 
   /**
+   * Closing sequence of subclasses.
+   */
+  virtual void DestroySubclass() {
+    virtmem_ctrl->Free(reinterpret_cast<virt_addr>(this));
+  }
+
+  /**
    * Return the length of protocol header, e.g., ArpLayer is expected to
    * return 28 (when Ethernet and IPv4 is used).
    * Some layers may have variable length of headers such as TcpLayer.
@@ -399,6 +423,8 @@ public:
       _reserved_queue.Pop(packet);
       virtmem_ctrl->Free(reinterpret_cast<virt_addr>(packet));
     }
+
+    _pstack->UnsetBaseLayer(this);
   }
 
   /**

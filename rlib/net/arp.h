@@ -30,6 +30,10 @@ class ArpSocket : public Socket {
 public:
   ArpSocket() {}
 
+  virtual ~ArpSocket() {
+    this->Close();
+  }
+
   /**
    * Struct serves as an interface between ArpSocket and ArpLayer.
    * ArpSocket receives / transmits Chunk from / to ArpLayer
@@ -52,7 +56,15 @@ public:
    *
    * @return 0 if succeeeds.
    */
-  virtual int Open();
+  virtual int Open() override;
+
+  /**
+   * Release resources reserved in Socket::Open().
+   * This function is tolerant of "double-calling".
+   *
+   * @return 0 if succeeeds.
+   */
+  virtual int Close() override;
 
   /**
    * Send an ARP request.

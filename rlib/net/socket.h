@@ -34,6 +34,21 @@
  */
 class Socket : public ProtocolStackLayer {
 public:
+
+  // return codes
+
+  /** success */
+  static const int kReturnSuccess             = 0;
+
+  /** unknown error */
+  static const int kErrorUnknown              = -1;
+  /** no device specified by interface name */
+  static const int kErrorNoDevice             = -100;
+  /** no enough space for connections in the device */
+  static const int kErrorNoDeviceSpace        = -101;
+  /** memory allocation failure */
+  static const int kErrorAllocFailure         = -102;
+
   Socket() {
     // TODO: find an available interface name
     strcpy(_ifname, "en0");
@@ -45,11 +60,24 @@ public:
    */
   virtual int Open() = 0;
 
+  /**
+   * Release resources reserved in Socket::Open().
+   * This function should be implemented to be tolerant of "double-calling".
+   */
+  virtual int Close() = 0;
+
   virtual bool SetupSubclass() {
     // prevent adding sublayer to Socket class
     _next_layer = this;
 
     return true;
+  }
+
+  /**
+   * Closing sequence of subclasses.
+   */
+  virtual void DestroySubclass() override {
+    // do nothing
   }
 
   /**

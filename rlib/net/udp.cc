@@ -29,6 +29,9 @@
 
 int UdpSocket::Open() {
   NetDevCtrl::NetDevInfo *devinfo = netdev_ctrl->GetDeviceInfo(_ifname);
+  if (devinfo == nullptr) {
+    return kErrorNoDevice;
+  }
   DevEthernet *device = static_cast<DevEthernet *>(devinfo->device);
   ProtocolStack *pstack = devinfo->ptcl_stack;
 
@@ -38,30 +41,58 @@ int UdpSocket::Open() {
   // stack construction
   // BaseLayer > EthernetLayer > Ipv4Layer > UdpLayer > UdpSocket
   ProtocolStackBaseLayer *base_layer_addr = reinterpret_cast<ProtocolStackBaseLayer *>(virtmem_ctrl->Alloc(sizeof(ProtocolStackBaseLayer)));
+  if (base_layer_addr == nullptr) {
+    return kErrorAllocFailure;
+  }
+
   ProtocolStackBaseLayer *base_layer = new(base_layer_addr) ProtocolStackBaseLayer();
   base_layer->Setup(nullptr);
-  pstack->SetBaseLayer(base_layer);
+  if (!pstack->SetBaseLayer(base_layer)) {
+    base_layer->Destroy();
+    return kErrorNoDeviceSpace;
+  }
 
   EthernetLayer *eth_layer_addr = reinterpret_cast<EthernetLayer *>(virtmem_ctrl->Alloc(sizeof(EthernetLayer)));
+  if (eth_layer_addr == nullptr) {
+    base_layer->Destroy();
+    return kErrorAllocFailure;
+  }
+
   EthernetLayer *eth_layer = new(eth_layer_addr) EthernetLayer();
-  eth_layer->Setup(base_layer);
+  assert(eth_layer->Setup(base_layer));
   eth_layer->SetAddress(eth_addr);
   eth_layer->SetUpperProtocolType(EthernetLayer::kProtocolIpv4);
 
   Ipv4Layer *ip_layer_addr = reinterpret_cast<Ipv4Layer *>(virtmem_ctrl->Alloc(sizeof(Ipv4Layer)));
+  if (ip_layer_addr == nullptr) {
+    eth_layer->Destroy();
+    return kErrorAllocFailure;
+  }
+
   Ipv4Layer *ip_layer = new(ip_layer_addr) Ipv4Layer();
-  ip_layer->Setup(eth_layer);
+  assert(ip_layer->Setup(eth_layer));
   ip_layer->SetAddress(_ipv4_addr);
   ip_layer->SetPeerAddress(_peer_addr);
   ip_layer->SetProtocol(Ipv4Layer::kProtocolUdp);
 
   UdpLayer *udp_layer_addr = reinterpret_cast<UdpLayer *>(virtmem_ctrl->Alloc(sizeof(UdpLayer)));
+  if (udp_layer_addr == nullptr) {
+    ip_layer->Destroy();
+    return kErrorAllocFailure;
+  }
+
   UdpLayer *udp_layer = new(udp_layer_addr) UdpLayer();
-  udp_layer->Setup(ip_layer);
+  assert(udp_layer->Setup(ip_layer));
   udp_layer->SetPort(_port);
   udp_layer->SetPeerPort(_peer_port);
 
-  return this->Setup(udp_layer) ? 0 : -1;
+  return this->Setup(udp_layer) ? kReturnSuccess : kErrorUnknown;
+}
+
+
+int UdpSocket::Close() {
+  this->Destroy();
+  return 0;
 }
 
 

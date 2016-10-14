@@ -29,6 +29,10 @@ int ArpSocket::Open() {
   this->Update();
 
   NetDevCtrl::NetDevInfo *devinfo = netdev_ctrl->GetDeviceInfo(_ifname);
+  if (devinfo == nullptr) {
+    return kErrorNoDevice;
+  }
+
   DevEthernet *device = static_cast<DevEthernet *>(devinfo->device);
   ProtocolStack *pstack = devinfo->ptcl_stack;
 
@@ -37,22 +41,46 @@ int ArpSocket::Open() {
 
   // stack construction (BaseLayer > EthernetLayer > ArpLayer > ArpSocket)
   ProtocolStackBaseLayer *base_layer_addr = reinterpret_cast<ProtocolStackBaseLayer *>(virtmem_ctrl->Alloc(sizeof(ProtocolStackBaseLayer)));
+  if (base_layer_addr == nullptr) {
+    return kErrorAllocFailure;
+  }
+
   ProtocolStackBaseLayer *base_layer = new(base_layer_addr) ProtocolStackBaseLayer();
   base_layer->Setup(nullptr);
-  pstack->SetBaseLayer(base_layer);
+
+  if (!pstack->SetBaseLayer(base_layer)) {
+    base_layer->Destroy();
+    return kErrorNoDeviceSpace;
+  }
 
   EthernetLayer *eth_layer_addr = reinterpret_cast<EthernetLayer *>(virtmem_ctrl->Alloc(sizeof(EthernetLayer)));
+  if (eth_layer_addr == nullptr) {
+    base_layer->Destroy();
+    return kErrorAllocFailure;
+  }
+
   EthernetLayer *eth_layer = new(eth_layer_addr) EthernetLayer();
-  eth_layer->Setup(base_layer);
+  assert(eth_layer->Setup(base_layer));
   eth_layer->SetAddress(eth_addr);
   eth_layer->SetUpperProtocolType(EthernetLayer::kProtocolArp);
 
   ArpLayer *arp_layer_addr = reinterpret_cast<ArpLayer *>(virtmem_ctrl->Alloc(sizeof(ArpLayer)));
+  if (arp_layer_addr == nullptr) {
+    eth_layer->Destroy();
+    return kErrorAllocFailure;
+  }
+
   ArpLayer *arp_layer = new(arp_layer_addr) ArpLayer();
-  arp_layer->Setup(eth_layer);
+  assert(arp_layer->Setup(eth_layer));
   arp_layer->SetAddress(eth_addr, _ipv4_addr);
 
-  return this->Setup(arp_layer) ? 0 : -1;
+  return this->Setup(arp_layer) ? kReturnSuccess : kErrorUnknown;
+}
+
+
+int ArpSocket::Close() {
+  this->Destroy();
+  return 0;
 }
 
 
