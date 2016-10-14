@@ -38,6 +38,7 @@ extern "C" {
   void *malloc (size_t size) __attribute__((malloc));
   void *calloc (size_t n, size_t size) __attribute__((malloc));
   void free(void *ptr);
+  int atexit(void (*func)());
 #endif /* __KERNEL__ */
 #ifdef __cplusplus
 }

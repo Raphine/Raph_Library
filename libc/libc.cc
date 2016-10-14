@@ -45,4 +45,9 @@ void free (void *ptr) {
   virtmem_ctrl->Free(reinterpret_cast<virt_addr>(ptr));
 }
 
+int atexit(void (*func)()) {
+  // TODO: register func to "closing handlers" list
+  return 0;
+}
+
 #endif // __KERNEL__
