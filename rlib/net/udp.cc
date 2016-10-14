@@ -103,7 +103,7 @@ bool UdpLayer::FilterPacket(NetDev::Packet *packet) {
     return false;
   }
 
-  if (ntohl(header->dport) != _port) {
+  if (ntohs(header->dport) != _port) {
     return false;
   }
 
