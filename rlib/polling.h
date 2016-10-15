@@ -39,7 +39,7 @@ class Polling {
     func.Init(this, &Polling::HandleSub, nullptr);
     _task.SetFunc(func);
   }
-  void RegisterPolling(int cpuid) {
+  void RegisterPolling(CpuId cpuid) {
     if (_state == PollingState::kPolling) {
       return;
     }
@@ -64,16 +64,16 @@ class Polling {
     }
   }
   PollingState _state = PollingState::kStopped;
-  int _cpuid = -1;
+  CpuId _cpuid;
   Task _task;
 };
 
 class PollingFunc : public Polling {
  public:
   void Register() {
-    Register(cpu_ctrl->GetId());
+    Register(cpu_ctrl->GetCpuId());
   }
-  void Register(int cpuid) {
+  void Register(CpuId cpuid) {
     this->RegisterPolling(cpuid);
   }
   void Remove() {
