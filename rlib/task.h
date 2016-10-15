@@ -51,7 +51,7 @@ public:
     }
     return _task_struct[cpuid.GetRawId()].state;
   }
- private:
+private:
   class ProcHaltCtrl {
   public:
     virtual ~ProcHaltCtrl() {

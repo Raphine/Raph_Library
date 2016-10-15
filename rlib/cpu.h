@@ -31,11 +31,6 @@ enum class CpuPurpose {
 };
 
 class CpuId {
-  private:
-    int rawid;
-    void Init(int newid) {
-      rawid = newid;
-    }
   public:
     static const int kCpuIdNotFound = -1;
     static const int kCpuIdBootProcessor = 0;
@@ -50,6 +45,11 @@ class CpuId {
     }
     uint8_t GetApicId();
     bool IsValid();
+  private:
+    int rawid;
+    void Init(int newid) {
+      rawid = newid;
+    }
 };
 
 class CpuCtrlInterface {
