@@ -172,11 +172,7 @@ void TaskCtrl::Run() {
       }
     }
 #ifdef __KERNEL__
-    if (ts->state == TaskQueueState::kNotRunning) {
-      apic_ctrl->StartTimer();
-    } else {
-      kassert(ts->state == TaskQueueState::kSlept);
-    }
+    apic_ctrl->StartTimer();
     asm volatile("hlt");
 #else
     usleep(10);
