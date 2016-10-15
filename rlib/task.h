@@ -27,6 +27,7 @@
 #include <function.h>
 #include <spinlock.h>
 #include <timer.h>
+#include <cpu.h>
 
 class Task;
 class Callout;
@@ -41,16 +42,16 @@ public:
   };
   TaskCtrl() {}
   void Setup();
-  void Register(int cpuid, Task *task);
+  void Register(CpuId cpuid, Task *task);
   void Remove(Task *task);
   void Run();
-  TaskQueueState GetState(int cpuid) {
+  TaskQueueState GetState(CpuId cpuid) {
     if (_task_struct == nullptr) {
       return TaskQueueState::kNotStarted;
     }
-    return _task_struct[cpuid].state;
+    return _task_struct[cpuid.GetRawId()].state;
   }
- private:
+private:
   class ProcHaltCtrl {
   public:
     virtual ~ProcHaltCtrl() {
@@ -66,7 +67,7 @@ public:
   friend Callout;
   void RegisterCallout(Callout *task);
   void CancelCallout(Callout *task);
-  void ForceWakeup(int cpuid);
+  void ForceWakeup(CpuId cpuid);
   struct TaskStruct {
     // queue
     Task *top;
@@ -110,7 +111,7 @@ private:
   FunctionBase _func;
   Task *_next;
   Task *_prev;
-  int _cpuid;
+  int _cpuid = -1;
   Status _status = Status::kOutOfQueue;
   friend TaskCtrl;
 };
@@ -129,8 +130,8 @@ public:
   }
   virtual ~CountableTask() {
   }
-  void SetFunc(int cpuid, const GenericFunction &func) {
-    _cpuid = cpuid;
+  void SetFunc(CpuId cpuid, const GenericFunction &func) {
+    _cpuid = cpuid.GetRawId();
     _func.Copy(func);
   }
   Task::Status GetStatus() {
@@ -174,7 +175,7 @@ public:
     return _func.CanExecute();
   }
   void SetHandler(uint32_t us);
-  void SetHandler(int cpuid, int us);
+  void SetHandler(CpuId cpuid, int us);
   void Cancel();
 private:
   void HandleSub(void *);
@@ -214,7 +215,7 @@ class LckCallout {
   void SetHandler(uint32_t us) {
     callout.SetHandler(us);
   }
-  void SetHandler(int cpuid, int us) {
+  void SetHandler(CpuId cpuid, int us) {
     callout.SetHandler(cpuid, us);
   }
   void Cancel() {

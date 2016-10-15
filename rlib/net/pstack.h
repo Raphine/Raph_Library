@@ -100,7 +100,7 @@ public:
    * @param device
    */
   void SetDevice(NetDev *device) {
-    assert(_device == nullptr);
+    kassert(_device == nullptr);
     _device = device;
 
     // set callback function to network device

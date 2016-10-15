@@ -118,7 +118,7 @@ public:
    * Update information of the interface, e.g., IP address.
    */
   virtual void Update() {
-    assert(GetIpv4Address(_ipv4_addr));
+    kassert(GetIpv4Address(_ipv4_addr));
   }
 
 private:

@@ -27,6 +27,7 @@
 #include <task.h>
 #include <functional.h>
 #include <raph.h>
+#include <cpu.h>
 
 template<class L>
 class FunctionalBase {
@@ -42,7 +43,7 @@ class FunctionalBase {
   }
   virtual ~FunctionalBase() {
   }
-  void SetFunction(int cpuid, const GenericFunction &func);
+  void SetFunction(CpuId cpuid, const GenericFunction &func);
  protected:
   void WakeupFunction();
   // check whether Functional needs to process function
@@ -51,7 +52,7 @@ class FunctionalBase {
   static void Handle(void *p);
   FunctionBase _func;
   Task _task;
-  int _cpuid = 0;
+  CpuId _cpuid;
   L _lock;
   FunctionState _state = FunctionState::kNotFunctioning;
 };
@@ -86,7 +87,7 @@ void FunctionalBase<L>::Handle(void *p) {
 }
 
 template<class L>
-void FunctionalBase<L>::SetFunction(int cpuid, const GenericFunction &func) {
+void FunctionalBase<L>::SetFunction(CpuId cpuid, const GenericFunction &func) {
   kassert(!_func.CanExecute());
   _cpuid = cpuid;
   _func.Copy(func);
