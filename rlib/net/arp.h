@@ -129,7 +129,7 @@ public:
   /**
    * Update information of the interface, e.g., IP address.
    */
-  virtual void Update() {
+  virtual void Update() override {
     assert(GetIpv4Address(_ipv4_addr));
   }
 

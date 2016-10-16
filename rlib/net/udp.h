@@ -82,6 +82,13 @@ public:
     }
   }
 
+  /**
+   * Receive an UDP packet.
+   *
+   * @param buf buffer to be stored a packet.
+   * @param len buffer length.
+   * @return received length.
+   */
   int Read(uint8_t *buf, int len) {
     NetDev::Packet *packet = nullptr;
     if (this->ReceivePacket(packet)) {
@@ -98,7 +105,14 @@ public:
     }
   }
 
-  int Write(uint8_t *buf, int len) {
+  /**
+   * Transmit an UDP packet.
+   *
+   * @param buf content to be sent.
+   * @param len content length.
+   * @return transmitted length.
+   */
+  int Write(const uint8_t *buf, int len) {
     NetDev::Packet *packet = nullptr;
     if (this->FetchTxBuffer(packet) < 0) {
       return -1;
@@ -112,7 +126,7 @@ public:
   /**
    * Update information of the interface.
    */
-  virtual void Update() {
+  virtual void Update() override {
     assert(GetIpv4Address(_ipv4_addr));
   }
 

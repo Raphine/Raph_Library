@@ -41,13 +41,19 @@ public:
   static const int kReturnSuccess             = 0;
 
   /** unknown error */
-  static const int kErrorUnknown              = -1;
+  static const int kErrorUnknown              = -0x1;
   /** no device specified by interface name */
-  static const int kErrorNoDevice             = -100;
+  static const int kErrorNoDevice             = -0x100;
   /** no enough space for connections in the device */
-  static const int kErrorNoDeviceSpace        = -101;
+  static const int kErrorNoDeviceSpace        = -0x101;
   /** memory allocation failure */
-  static const int kErrorAllocFailure         = -102;
+  static const int kErrorAllocFailure         = -0x102;
+  /** out of reserved buffer for tx/rx */
+  static const int kErrorOutOfBuffer          = -0x103;
+  /** TCP: did not receive ACK */
+  static const int kErrorNoAck                = -0x1000;
+  /** unexpected error (e.g. reached the point not expected to be reached) */
+  static const int kErrorUnexpected           = -0x10000;
 
   Socket() {
     // TODO: find an available interface name
@@ -95,6 +101,28 @@ public:
    * Update information of the interface, e.g., IP address.
    */
   virtual void Update() {}
+
+  /**
+   * Receive a packet from the parent layer.
+   *
+   * @param packet MUST be freed by ReuseRxBuffer once it's no longer necessary.
+   * @return if succeeeds.
+   */
+  virtual bool ReceivePacket(NetDev::Packet *&packet) override {
+    // omit header manipulation since Socket does not have header
+    return _prev_layer->ReceivePacket(packet);
+  }
+
+  /**
+   * Transmit a packet to the parent layer.
+   *
+   * @param packet MUST be fetched by FetchTxBuffer in advance.
+   * @return if succeeds.
+   */
+  virtual bool TransmitPacket(NetDev::Packet *packet) override {
+    // omit header manipulation since Socket does not have header
+    return _prev_layer->TransmitPacket(packet);
+  }
 
 protected:
   // same constants exists in NetDevCtrl, should we merge?

@@ -259,7 +259,7 @@ public:
   }
 
   /**
-   * Receive packet from the parent layer.
+   * Receive a packet from the parent layer.
    *
    * @param packet MUST be freed by ReuseRxBuffer once it's no longer necessary.
    * @return if succeeds.
@@ -279,7 +279,7 @@ public:
   }
 
   /**
-   * Return packet buffer to the parent layer to free.
+   * Return a packet to the parent layer to free.
    *
    * @param packet MUST be fetched by ReceivedPacket.
    * @return if succeeds.
@@ -296,7 +296,7 @@ public:
   }
 
   /**
-   * Transmit the packet to the parent layer.
+   * Transmit a packet to the parent layer.
    *
    * @param packet MUST be fetched by FetchTxBuffer in advance.
    * @return if succeeds.
@@ -314,7 +314,7 @@ public:
   }
 
   /**
-   * Fetch the buffer aimed at transmission from the parent layer.
+   * Fetch a buffer aimed at transmission from the parent layer.
    *
    * @param packet MUST be passed to TransmitPacket.
    * @return if succeeds.
@@ -403,7 +403,6 @@ protected:
   /** reference to the children layer */
   ProtocolStackLayer *_next_layer = nullptr;
 
-private:
   /** reference to the parent layer */
   ProtocolStackLayer *_prev_layer = nullptr;
 };
