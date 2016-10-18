@@ -41,10 +41,11 @@ class CpuCtrlInterface {
 public:
   const int kCpuIdNotFound = -1;
   const int kCpuIdBootProcessor = 0;
-  //
+  
   virtual ~CpuCtrlInterface() {
   }
   virtual void Init() = 0;
+  virtual bool IsInitialized() = 0;
   virtual CpuId GetCpuId() = 0;
   virtual int GetHowManyCpus() = 0;
   virtual CpuId RetainCpuIdForPurpose(CpuPurpose p) = 0;
@@ -59,6 +60,9 @@ public:
   CpuCtrl() {
   }
   virtual void Init() override;
+  virtual bool IsInitialized() override {
+    return _is_initialized;
+  }
   virtual CpuId GetCpuId() override {
     if (!KernelStackCtrl::IsInitialized()) {
       CpuId cpuid(apic_ctrl->GetCpuId());
@@ -86,6 +90,7 @@ public:
     }
   }
 private:
+  bool _is_initialized = false;
   CpuPurpose *_cpu_purpose_map;
   int *_cpu_purpose_count;
   // do not count for cpuid:0 (boot processor is always assigned to kLowPriority)
@@ -117,8 +122,12 @@ private:
   }
 };
 
+inline bool CpuId::IsValid() {
+  return _rawid >= 0 && (!cpu_ctrl->IsInitialized() || _rawid < cpu_ctrl->GetHowManyCpus());
+}
+
 inline void CpuId::CheckIfValid() {
-  if (_rawid < 0 || _rawid >= cpu_ctrl->GetHowManyCpus()) {
+  if (!IsValid()) {
     kernel_panic("CpuId", "Invalid ID");
   }
 }

@@ -183,43 +183,45 @@ void TaskCtrl::Register(CpuId cpuid, Task *task) {
 
 void TaskCtrl::Remove(Task *task) {
   kassert(task->_status != Task::Status::kGuard);
-  int cpuid = cpu_ctrl->GetCpuId().GetRawId();
-  Locker locker(_task_struct[cpuid].lock);
-  switch(task->_status) {
-  case Task::Status::kWaitingInQueue: {
-    Task *next = task->_next;
-    Task *prev = task->_prev;
+  if (task->_status != Task::Status::kOutOfQueue) {
+    int cpuid = cpu_ctrl->GetCpuId().GetRawId();
+    Locker locker(_task_struct[cpuid].lock);
+    switch(task->_status) {
+    case Task::Status::kWaitingInQueue: {
+      Task *next = task->_next;
+      Task *prev = task->_prev;
 
-    task->_next = nullptr;
-    task->_prev = nullptr;
+      task->_next = nullptr;
+      task->_prev = nullptr;
 
-    kassert(prev != nullptr);
-    prev->_next = next;
+      kassert(prev != nullptr);
+      prev->_next = next;
 
-    if (next == nullptr) {
-      if (task == _task_struct[cpuid].bottom) {
-        _task_struct[cpuid].bottom = prev;
-      } else if (task == _task_struct[cpuid].bottom_sub) {
-        _task_struct[cpuid].bottom_sub = prev;
+      if (next == nullptr) {
+        if (task == _task_struct[cpuid].bottom) {
+          _task_struct[cpuid].bottom = prev;
+        } else if (task == _task_struct[cpuid].bottom_sub) {
+          _task_struct[cpuid].bottom_sub = prev;
+        } else {
+          kassert(false);
+        }
       } else {
-        kassert(false);
+        next->_prev = prev;
       }
-    } else {
-      next->_prev = prev;
-    }
 
-    prev->_next = next;
-    break;
+      prev->_next = next;
+      break;
+    }
+    case Task::Status::kRunning:
+    case Task::Status::kOutOfQueue: {
+      break;
+    }
+    default:{
+      kassert(false);
+    }
+    }
+    task->_status = Task::Status::kOutOfQueue;  
   }
-  case Task::Status::kRunning:
-  case Task::Status::kOutOfQueue: {
-    break;
-  }
-  default:{
-    kassert(false);
-  }
-  }
-  task->_status = Task::Status::kOutOfQueue;  
 }
 
 void TaskCtrl::Wait() {
@@ -299,9 +301,9 @@ void TaskCtrl::RegisterCallout(Callout *task) {
 }
 
 void TaskCtrl::CancelCallout(Callout *task) {
-  int cpuid = task->_cpuid.GetRawId();
   switch(task->_state) {
   case Callout::CalloutState::kCalloutQueue: {
+    int cpuid = task->_cpuid.GetRawId();
     Locker locker(_task_struct[cpuid].dlock);
     Callout *dt = _task_struct[cpuid].dtop;
     while(dt->_next != nullptr) {

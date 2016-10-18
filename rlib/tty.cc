@@ -46,7 +46,7 @@ void Tty::PrintString(String *str) {
 }
 
 void Tty::DoString(String *str) {
-  if (task_ctrl->GetState(_cpuid) != TaskCtrl::TaskQueueState::kNotStarted) {
+  if (_cpuid.IsValid() && task_ctrl->GetState(_cpuid) != TaskCtrl::TaskQueueState::kNotStarted) {
     _queue.Push(str);
   } else {
     Locker locker(_lock);

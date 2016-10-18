@@ -72,7 +72,7 @@ extern "C" {
 #define MASK(val, ebit, sbit) ((val) & (((1 << ((ebit) - (sbit) + 1)) - 1) << (sbit)))
   
   void _kernel_panic(const char *class_name, const char *err_str);
-#define kernel_panic(...) do{ while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } }while(true)
+#define kernel_panic(...) do{ while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } _kernel_panic(__VA_ARGS__); }while(true)
 
   void checkpoint(int id, const char *str);
   void _checkpoint(const char *func, const int line);

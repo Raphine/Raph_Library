@@ -41,6 +41,7 @@ public:
     return _rawid;
   }
   uint8_t GetApicId();
+  bool IsValid();
 private:
   void CheckIfValid();
   int _rawid;

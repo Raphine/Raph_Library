@@ -41,6 +41,7 @@ void CpuCtrl::Init() {
     }
     _cpu_purpose_count[i] = 0;
   }
+  _is_initialized = true;
 }
 
 CpuId CpuCtrl::RetainCpuIdForPurpose(CpuPurpose p) {
