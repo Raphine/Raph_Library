@@ -33,6 +33,9 @@
 #endif // __KERNEL__
 
 void TaskCtrl::Setup() {
+#ifdef __KERNEL__
+  kassert(apic_ctrl->DidSetup());
+#endif // __KERNEL__
   int cpus = cpu_ctrl->GetHowManyCpus();
   _task_struct = new TaskStruct[cpus];
   for (int i = 0; i < cpus; i++) {

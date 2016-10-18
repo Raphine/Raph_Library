@@ -54,6 +54,7 @@ public:
 };
 
 #ifdef __KERNEL__
+#include <mem/kstack.h>
 
 class CpuCtrl : public CpuCtrlInterface {
 public:

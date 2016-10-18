@@ -26,8 +26,15 @@
 #include <stdint.h>
 
 class Timer {
- public:
-  virtual bool Setup() = 0;
+public:
+  bool Setup() {
+    bool b = SetupSub();
+    _setup = true;
+    return b;
+  }
+  bool DidSetup() {
+    return _setup;
+  }
   virtual volatile uint64_t ReadMainCnt() = 0;
   // us秒後のカウントを取得する
   volatile uint64_t GetCntAfterPeriod(volatile uint64_t cur, int us) {
@@ -65,9 +72,12 @@ class Timer {
   uint64_t GetUsecFromCnt(uint64_t cnt) {
     return (cnt * _cnt_clk_period) / 1000;
   }
- protected:
+protected:
   // １カウントが何ナノ秒か
   uint64_t _cnt_clk_period = 1;
+  virtual bool SetupSub() = 0;
+private:
+  bool _setup = false;
 };
 
 #endif /* __RAPH_KERNEL_TIMER_H__ */
