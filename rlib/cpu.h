@@ -65,7 +65,8 @@ public:
   }
   virtual CpuId GetCpuId() override {
     if (!KernelStackCtrl::IsInitialized()) {
-      CpuId cpuid(apic_ctrl->GetCpuId());
+      kassert(apic_ctrl->GetCpuId() == 0);
+      CpuId cpuid(0);
       return cpuid;
     }
     return KernelStackCtrl::GetCtrl().GetCpuId();
