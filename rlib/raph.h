@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <libglobal.h>
 
 #ifdef __cplusplus
 template<class T>
@@ -63,14 +64,15 @@ extern "C" {
 #undef kassert
   
   void _kassert(const char *file, int line, const char *func)  __attribute__((noreturn));
-#define kassert(flag) if (!(flag)) { _kassert(__FILE__, __LINE__, __func__); }
+#define kassert(flag) if (!(flag)) { while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } _kassert(__FILE__, __LINE__, __func__); }
 
 #endif /* __KERNEL__ */
 
   
 #define MASK(val, ebit, sbit) ((val) & (((1 << ((ebit) - (sbit) + 1)) - 1) << (sbit)))
   
-  void kernel_panic(const char *class_name, const char *err_str);
+  void _kernel_panic(const char *class_name, const char *err_str);
+#define kernel_panic(...) do{ while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } }while(true)
 
   void checkpoint(int id, const char *str);
   void _checkpoint(const char *func, const int line);
