@@ -32,7 +32,7 @@
 
 void IntSpinLock::Lock() {
   if ((_flag % 2) == 1) {
-    kassert(_id != cpu_ctrl->GetId());
+    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
   }
   volatile unsigned int flag = GetFlag();
   while(true) {
@@ -46,13 +46,13 @@ void IntSpinLock::Lock() {
     }
     flag = GetFlag();
   }
-  _id = cpu_ctrl->GetId();
+  _cpuid = cpu_ctrl->GetCpuId();
 }
 
 void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
-  _id = -1;
   enable_interrupt(_did_stop_interrupt);
+  _cpuid = CpuId();
   _flag++;
 }
 

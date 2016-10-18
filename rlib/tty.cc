@@ -22,6 +22,16 @@
 
 #include <tty.h>
 #include <mem/virtmem.h>
+#include <cpu.h>
+#include <global.h>
+#include <task.h>
+
+void Tty::Init() {
+  _cpuid = cpu_ctrl->RetainCpuIdForPurpose(CpuPurpose::kLowPriority);
+  Function func;
+  func.Init(Handle, reinterpret_cast<void *>(this));
+  _queue.SetFunction(_cpuid, func);
+}
 
 void Tty::PrintString(String *str) {
   for(int i = 0; i < String::length; i++) {
@@ -32,6 +42,15 @@ void Tty::PrintString(String *str) {
   }
   if (str->next != nullptr) {
     PrintString(str->next);
+  }
+}
+
+void Tty::DoString(String *str) {
+  if (task_ctrl->GetState(_cpuid) != TaskCtrl::TaskQueueState::kNotStarted) {
+    _queue.Push(str);
+  } else {
+    Locker locker(_lock);
+    PrintString(str);
   }
 }
 

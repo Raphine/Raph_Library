@@ -24,8 +24,8 @@
 #define __RAPH_LIB_TASK_H__
 
 #include <setjmp.h>
-#include "_task.h"
-#include "_queue.h"
+#include <_task.h>
+#include <_queue.h>
 
 // enable to blocking operation
 class TaskWithStack : public Task {
@@ -82,22 +82,22 @@ public:
   };
   TaskCtrl() {}
   void Setup();
-  void Register(int cpuid, Task *task);
+  void Register(CpuId cpuid, Task *task);
   void Remove(Task *task);
   void Wait();
   void Run();
-  TaskQueueState GetState(int cpuid) {
+  TaskQueueState GetState(CpuId cpuid) {
     if (_task_struct == nullptr) {
       return TaskQueueState::kNotStarted;
     }
-    return _task_struct[cpuid].state;
+    return _task_struct[cpuid.GetRawId()].state;
   }
- private:
+private:
+  
   friend Callout;
   void RegisterCallout(Callout *task);
   void CancelCallout(Callout *task);
-  void ForceWakeup(int cpuid);
-    
+  void ForceWakeup(CpuId cpuid); 
   class TaskStruct {
   public:
     TaskStruct();

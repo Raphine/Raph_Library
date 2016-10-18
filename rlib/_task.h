@@ -61,7 +61,7 @@ private:
   FunctionBase _func;
   Task *_next;
   Task *_prev;
-  int _cpuid;
+  CpuId _cpuid;
   Status _status = Status::kOutOfQueue;
   friend TaskCtrl;  // TODO should be removed
 };
@@ -73,14 +73,13 @@ class CountableTask {
 public:
   CountableTask() {
     _cnt = 0;
-    _cpuid = -1;
     ClassFunction<CountableTask> func;
     func.Init(this, &CountableTask::HandleSub, nullptr);
     _task.SetFunc(func);
   }
   virtual ~CountableTask() {
   }
-  void SetFunc(int cpuid, const GenericFunction &func) {
+  void SetFunc(CpuId cpuid, const GenericFunction &func) {
     _cpuid = cpuid;
     _func.Copy(func);
   }
@@ -94,7 +93,7 @@ private:
   IntSpinLock _lock;
   FunctionBase _func;
   int _cnt;
-  int _cpuid;
+  CpuId _cpuid;
 };
 
 // 遅延実行されるタスク 
@@ -125,14 +124,14 @@ public:
     return _func.CanExecute();
   }
   void SetHandler(uint32_t us);
-  void SetHandler(int cpuid, int us);
+  void SetHandler(CpuId cpuid, int us);
   void Cancel();
   bool IsPending() {
     return _pending;
   }
 private:
   void HandleSub(void *);
-  int _cpuid;
+  CpuId _cpuid;
   Task _task;
   uint64_t _time;
   Callout *_next;
@@ -167,7 +166,7 @@ class LckCallout {
   void SetHandler(uint32_t us) {
     callout.SetHandler(us);
   }
-  void SetHandler(int cpuid, int us) {
+  void SetHandler(CpuId cpuid, int us) {
     callout.SetHandler(cpuid, us);
   }
   void Cancel() {
