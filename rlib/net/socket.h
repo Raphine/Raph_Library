@@ -50,8 +50,18 @@ public:
   static const int kErrorAllocFailure         = -0x102;
   /** out of reserved buffer for tx/rx */
   static const int kErrorOutOfBuffer          = -0x103;
+  /** no packet in rx buffer */
+  static const int kErrorNoRxPacket           = -0x104;
+  /** packet transmission failure */
+  static const int kErrorTxFailure            = -0x105;
+  /** TCP: connection closed by remote */
+  static const int kReturnConnectionClosed    = -0x1000;
+  /** TCP: already established before Listen / Connect */
+  static const int kReturnAlreadyEstablished  = -0x1001;
   /** TCP: did not receive ACK */
-  static const int kErrorNoAck                = -0x1000;
+  static const int kErrorNoAck                = -0x1002;
+  /** TCP: acknowledgement failure */
+  static const int kErrorAckFailure           = -0x1003;
   /** unexpected error (e.g. reached the point not expected to be reached) */
   static const int kErrorUnexpected           = -0x10000;
 

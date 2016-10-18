@@ -72,6 +72,24 @@ public:
   } __attribute__((packed));
 
   /**
+   * Set my IPv4 address.
+   *
+   * @param ipv4_addr
+   */
+  void SetAddress(uint32_t ipv4_addr) {
+    _ipv4_addr = ipv4_addr;
+  }
+
+  /**
+   * Set peer IPv4 address.
+   *
+   * @param ipv4_addr
+   */
+  void SetPeerAddress(uint32_t ipv4_addr) {
+    _peer_addr = ipv4_addr;
+  }
+
+  /**
    * Set my TCP port.
    *
    * @param port 
@@ -106,6 +124,30 @@ public:
    * @return return code.
    */
   int ReceiveSub(NetDev::Packet *&packet);
+
+  /**
+   * Wait for a client connection (3-way handshake).
+   * This is used by TCP server sockets.
+   *
+   * @return return code.
+   */
+  int Listen();
+
+  /**
+   * Connect to a server (with 3-way handshake).
+   * This is used by TCP client sockets.
+   *
+   * @return return code.
+   */
+  int Connect();
+
+  /**
+   * Close TCP connection (with 3-way handshake).
+   * This can be used both by TCP server and client sockets.
+   *
+   * @return return code.
+   */
+  int Shutup();
 
 protected:
   /**
@@ -150,6 +192,12 @@ private:
     AckWait,
   };
 
+  /** IPv4 address assigned to the network device under this layer */
+  uint32_t _ipv4_addr = 0;
+
+  /** IPv4 address of the peer */
+  uint32_t _peer_addr = 0;
+
   /** port number of this connection */
   uint16_t _port;
 
@@ -187,6 +235,13 @@ private:
    * @return checksum value.
    */
   uint16_t Ipv4Checksum(uint8_t *buf, uint32_t size, uint32_t saddr, uint32_t daddr);
+
+  /**
+   * Responce to FIN session with FIN+ACK.
+   *
+   * @return return code.
+   */
+  int CloseAck();
 };
 
 
@@ -267,7 +322,10 @@ public:
    *
    * @return return code.
    */
-  int Listen();
+  int Listen() {
+    TcpLayer *tcp = reinterpret_cast<TcpLayer *>(_prev_layer);
+    return tcp->Listen();
+  }
 
   /**
    * Connect to a server (with 3-way handshake).
@@ -275,7 +333,10 @@ public:
    *
    * @return return code.
    */
-  int Connect();
+  int Connect() {
+    TcpLayer *tcp = reinterpret_cast<TcpLayer *>(_prev_layer);
+    return tcp->Connect();
+  }
 
   /**
    * Close TCP connection (with 3-way handshake).
@@ -283,7 +344,10 @@ public:
    *
    * @return return code.
    */
-  int Shutup();
+  int Shutup() {
+    TcpLayer *tcp = reinterpret_cast<TcpLayer *>(_prev_layer);
+    return tcp->Shutup();
+  }
 
   /**
    * Update information of the interface.
@@ -328,13 +392,6 @@ private:
 
   /** target port */
   uint16_t _peer_port;
-
-  /**
-   * Responce to FIN session with FIN+ACK.
-   *
-   * @return return code.
-   */
-  int CloseAck();
 };
 
 

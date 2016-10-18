@@ -21,6 +21,7 @@
  */
 
 
+#include <stdlib.h>
 #include <net/eth.h>
 #include <net/ip.h>
 #include <net/tcp.h>
@@ -78,9 +79,17 @@ int TcpSocket::Open() {
   TcpLayer *tcp_layer_addr = reinterpret_cast<TcpLayer *>(virtmem_ctrl->Alloc(sizeof(TcpLayer)));
   if (tcp_layer_addr == nullptr) {
     ip_layer->Destroy();
+    return kErrorAllocFailure;
   }
 
-  return 0;
+  TcpLayer *tcp_layer = new(tcp_layer_addr) TcpLayer();
+  assert(tcp_layer->Setup(ip_layer));
+  tcp_layer->SetAddress(_ipv4_addr);
+  tcp_layer->SetPeerAddress(_peer_addr);
+  tcp_layer->SetPort(_port);
+  tcp_layer->SetPeerPort(_peer_port);
+
+  return this->Setup(tcp_layer) ? kReturnSuccess : kErrorUnknown;
 }
 
 
@@ -91,7 +100,17 @@ int TcpSocket::Close() {
 
 
 int TcpSocket::Read(uint8_t *buf, int len) {
-  return 0;
+  NetDev::Packet *packet = nullptr;
+  if (this->ReceivePacket(packet)) {
+    int ret = static_cast<int>(packet->len) <= len ? packet->len : len;
+
+    memcpy(buf, packet->buf, ret);
+    this->ReuseRxBuffer(packet);
+
+    return ret;
+  } else {
+    return kErrorNoRxPacket;
+  }
 }
 
 
@@ -103,33 +122,270 @@ int TcpSocket::Write(const uint8_t *buf, int len) {
     memcpy(packet->buf, buf, len);
     packet->len = len;
 
-    int rval = this->TransmitPacket(packet);
-    if (rval >= 0) {
+    if (this->TransmitPacket(packet) == true) {
       return len;
     } else {
-      return rval;
+      return Socket::kErrorTxFailure;
     }
   }
 }
 
 
-int TcpSocket::Listen() {
-  return 0;
+int TcpLayer::Listen() {
+  if (_state != TcpLayer::State::Closed && _state != TcpLayer::State::Listen &&
+      _state != TcpLayer::State::SynReceived && _state != TcpLayer::State::SynSent) {
+    // connection already established
+    return Socket::kReturnAlreadyEstablished;
+  }
+
+  if (_state == TcpLayer::State::Closed) {
+    // try to receive SYN packet
+    _session_type = kFlagSYN;
+
+    NetDev::Packet *synpkt = nullptr;
+    if (this->ReceivePacket(synpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(synpkt->buf);
+      _ack = header->seq_number + 1;
+      _state = TcpLayer::State::Listen;
+      this->ReuseRxBuffer(synpkt);
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  if (_state == TcpLayer::State::Listen) {
+    // try to transmit SYN+ACK packet
+    _session_type = kFlagSYN | kFlagACK;
+    _seq = _seq == 0 ? rand() : _seq;
+
+    NetDev::Packet *ackpkt = nullptr;
+    if (this->FetchTxBuffer(ackpkt) < 0) {
+      return Socket::kErrorOutOfBuffer;
+    }
+
+    if (this->TransmitPacket(ackpkt) == true) {
+      _state = TcpLayer::State::SynSent;
+    } else {
+      // failure
+      return Socket::kErrorTxFailure;
+    }
+  }
+
+  if (_state == TcpLayer::State::SynSent) {
+    // try to receive ACK packet
+    _session_type = kFlagACK;
+
+    NetDev::Packet *ackpkt = nullptr;
+    if (this->ReceivePacket(ackpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(ackpkt->buf);
+      uint32_t seq = header->seq_number;
+      uint32_t ack = header->ack_number;
+
+      this->ReuseRxBuffer(ackpkt);
+
+      // check sequence number
+      if (seq != _ack) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // check acknowledgement number
+      if (ack != _seq + 1) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // connection established
+      _seq = _ack;
+      _ack = seq + 1;
+      _state = TcpLayer::State::Established;
+      return Socket::kReturnSuccess;
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  return Socket::kErrorUnknown;
 }
 
 
-int TcpSocket::Connect() {
-  return 0;
+int TcpLayer::Connect() {
+  if (_state != TcpLayer::State::Closed && _state != TcpLayer::State::Listen &&
+      _state != TcpLayer::State::SynReceived && _state != TcpLayer::State::SynSent) {
+    // connection already established
+    return Socket::kReturnAlreadyEstablished;
+  }
+
+  if (_state == TcpLayer::State::Closed) {
+    // try to transmit SYN packet
+    NetDev::Packet *synpkt = nullptr;
+    if (this->FetchTxBuffer(synpkt) < 0) {
+      return Socket::kErrorOutOfBuffer;
+    }
+
+    _session_type = kFlagSYN;
+    _seq = rand();
+    _ack = 0;
+
+    if (this->TransmitPacket(synpkt) == true) {
+      _state = TcpLayer::State::SynSent;
+    } else {
+      // failure
+      return Socket::kErrorTxFailure;
+    }
+  }
+
+  if (_state == TcpLayer::State::SynSent) {
+    // try to receive SYN+ACK packet
+    NetDev::Packet *synpkt = nullptr;
+
+    _session_type = kFlagSYN | kFlagACK;
+
+    if (this->ReceivePacket(synpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(synpkt->buf);
+      uint32_t seq = header->seq_number;
+      uint32_t ack = header->ack_number;
+
+      this->ReuseRxBuffer(synpkt);
+
+      // check acknowledgement number
+      if (ack != _seq + 1) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // try to transmit ACK packet
+      NetDev::Packet *ackpkt = nullptr;
+      if (this->FetchTxBuffer(ackpkt) < 0) {
+        return Socket::kErrorOutOfBuffer;
+      }
+
+      _session_type = kFlagACK;
+      _seq = _seq + 1;
+      _ack = seq + 1;
+
+      if (this->TransmitPacket(ackpkt) == true) {
+        _state = TcpLayer::State::Established;
+
+        // connection established
+        _ack = seq + 1;
+
+        return Socket::kReturnSuccess;
+      } else {
+        // failure
+        return Socket::kErrorTxFailure;
+      }
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  return Socket::kErrorUnknown;
 }
 
 
-int TcpSocket::Shutup() {
-  return 0;
-}
+int TcpLayer::Shutup() {
+  if (_state == TcpLayer::State::SynSent || _state == TcpLayer::State::Listen) {
+    _state = TcpLayer::State::Closed;
+    return Socket::kReturnSuccess;
+  }
 
+  if (_state == TcpLayer::State::Established) {
+    // try to transmit FIN+ACK packet
+    NetDev::Packet *finpkt = nullptr;
+    if (this->FetchTxBuffer(finpkt) < 0) {
+      return Socket::kErrorOutOfBuffer;
+    }
 
-int TcpSocket::CloseAck() {
-  return 0;
+    _session_type = kFlagFIN | kFlagACK;
+
+    if (this->TransmitPacket(finpkt) == true) {
+      _state = TcpLayer::State::FinWait1;
+    } else {
+      // failure
+      return Socket::kErrorTxFailure;
+    }
+  }
+
+  if (_state == TcpLayer::State::FinWait1) {
+    // try to receive ACK packet
+    NetDev::Packet *ackpkt = nullptr;
+
+    _session_type = kFlagACK;
+
+    if (this->ReceivePacket(ackpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(ackpkt->buf);
+      uint32_t seq = header->seq_number;
+      uint32_t ack = header->ack_number;
+
+      this->ReuseRxBuffer(ackpkt);
+
+      // check sequence number
+      if (seq != _ack) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // check acknowledgement number
+      if (ack != _seq + 1) {
+        return Socket::kErrorAckFailure;
+      }
+
+      _state = TcpLayer::State::FinWait2;
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  if (_state == TcpLayer::State::FinWait2) {
+    // try to receive FIN+ACK packet
+    NetDev::Packet *finpkt = nullptr;
+
+    _session_type = kFlagFIN | kFlagACK;
+
+    if (this->ReceivePacket(finpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(finpkt->buf);
+      uint32_t seq = header->seq_number;
+      uint32_t ack = header->ack_number;
+
+      this->ReuseRxBuffer(finpkt);
+
+      // check sequence number
+      if (seq != _ack) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // check acknowledgement number
+      if (ack != _seq + 1) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // try to transmit ACK packet
+      NetDev::Packet *ackpkt = nullptr;
+      if (this->FetchTxBuffer(ackpkt) < 0) {
+        return Socket::kErrorOutOfBuffer;
+      }
+
+      _session_type = kFlagACK;
+      _seq = _seq + 1;
+      _ack = _ack + 1;
+
+      if (this->TransmitPacket(ackpkt) == true) {
+        _state = TcpLayer::State::Closed;
+        _seq = 0;
+        _ack = 0;
+        return Socket::kReturnSuccess;
+      } else {
+        // failure
+        return Socket::kErrorTxFailure;
+      }
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  return Socket::kErrorUnknown;
 }
 
 
@@ -180,30 +436,94 @@ bool TcpLayer::PreparePacket(NetDev::Packet *packet) {
   header->checksum = 0;
   header->urgent_pointer = 0;
 
-//  header->checksum = this->Checksum(header, header_length/* + length */, saddr, daddr);
+  header->checksum = this->Ipv4Checksum(packet->buf, packet->len, _ipv4_addr, _peer_addr);
 
   return true;
 }
 
 
 int TcpLayer::ReceiveSub(NetDev::Packet *&packet) {
+  // TODO: check when to use ReuseRxBuffer on packet?
+  if (_state == TcpLayer::State::CloseWait || _state == TcpLayer::State::LastAck) {
+    // continue closing connection
+    int rval = CloseAck();
+
+    if (rval >= 0) {
+      return Socket::kReturnConnectionClosed;
+    } else {
+      // failure
+      return rval;
+    }
+  }
+
+  if (_state == TcpLayer::State::Established) {
+    if (_session_type & kFlagACK) {
+      // try to receive TCP acknowledgement
+      if (this->TransmitPacket(packet) == true) {
+        TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(packet->buf);
+
+        // TODO: check if ack number is duplicated
+
+        if (header->fin) {
+          _seq = header->ack_number;
+          _ack = header->seq_number + 1;
+          int rval = CloseAck();
+
+          if (rval >= 0) {
+            return Socket::kReturnConnectionClosed;
+          } else {
+            return rval;
+          }
+        } else if (_ack == header->seq_number || (_seq == header->seq_number && _ack == header->ack_number)) {
+          // correct sequence: acknowledge number = the expected next sequence number
+          // or right after 3-way handshake
+
+          // set next expected sequence / acknowledge number
+          _seq = header->ack_number;
+          _ack = header->seq_number + packet->len;
+
+          if (_state == TcpLayer::State::Established) {
+            // send acknowledment completion
+            NetDev::Packet *ackpkt = nullptr;
+
+            if (this->FetchTxBuffer(ackpkt) < 0) {
+              return Socket::kErrorOutOfBuffer;
+            }
+
+            ackpkt->len = 0;
+            if (this->TransmitPacket(ackpkt) == true) {
+              return ackpkt->len;
+            } else {
+              return Socket::kErrorTxFailure;
+            }
+          }
+        } else {
+          return Socket::kErrorAckFailure;
+        }
+      }
+    } else {
+      return this->ReceivePacket(packet);
+    }
+  }
+
+  return Socket::kErrorUnknown;
 }
 
 
 int TcpLayer::TransmitSub(NetDev::Packet *packet) {
   if (_state != TcpLayer::State::AckWait) {
     // try to send a packet
-    int rval = this->TransmitPacket(packet);
+    if(this->TransmitPacket(packet) == false) {
+      return Socket::kErrorTxFailure;
+    }
 
     // check transmission mode
-    if (_session_type & kFlagACK) {
-      if (rval >= 0 && _state != TcpLayer::State::Closed) {
-        _packet_length = rval;
-        _state = TcpLayer::State::AckWait;
-      } else if (rval < 0) {
-        // failure
-        return rval;
-      }
+    if (_session_type & kFlagACK && _state != TcpLayer::State::Closed) {
+      _packet_length = packet->len;
+      _state = TcpLayer::State::AckWait;
+    } else {
+      // paranoid
+      assert(false);
     }
   }
 
@@ -212,11 +532,9 @@ int TcpLayer::TransmitSub(NetDev::Packet *packet) {
   if (_state == TcpLayer::State::AckWait) {
     // try to receive ACK
     NetDev::Packet *rpacket = nullptr;
-    int rval = this->ReceivePacket(rpacket);
-
-    if (rval < 0) {
+    if (this->ReceivePacket(rpacket) == false) {
       // no available packet
-      return rval;
+      return Socket::kErrorNoRxPacket;
     } else {
       // check TCP acknowldgement conditions
       TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(rpacket->buf);
@@ -239,6 +557,79 @@ int TcpLayer::TransmitSub(NetDev::Packet *packet) {
   }
 
   return Socket::kErrorUnexpected;
+}
+
+
+int TcpLayer::CloseAck() {
+  if (_state == TcpLayer::State::Established) {
+    // transmit ACK packet
+    _session_type = kFlagACK;
+
+    NetDev::Packet *ackpkt = nullptr;
+    if (this->FetchTxBuffer(ackpkt) < 0) {
+      return Socket::kErrorOutOfBuffer;
+    }
+
+    if (this->TransmitPacket(ackpkt) == true) {
+      _state = TcpLayer::State::CloseWait;
+    } else {
+      // failure
+      return Socket::kErrorTxFailure;
+    }
+  }
+
+  if (_state == TcpLayer::State::CloseWait) {
+    // transmit FIN+ACK packet
+    _session_type = kFlagFIN | kFlagACK;
+
+    NetDev::Packet *ackpkt = nullptr;
+    if (this->FetchTxBuffer(ackpkt) < 0) {
+      return Socket::kErrorOutOfBuffer;
+    }
+
+    if (this->TransmitPacket(ackpkt) == true) {
+      _state = TcpLayer::State::LastAck;
+    } else {
+      // failure
+      return Socket::kErrorTxFailure;
+    }
+  }
+
+  if (_state == TcpLayer::State::LastAck) {
+    // receive ACK packet
+    _session_type = kFlagACK;
+
+    NetDev::Packet *ackpkt = nullptr;
+
+    if (this->ReceivePacket(ackpkt) == true) {
+      TcpLayer::Header *header = reinterpret_cast<TcpLayer::Header *>(ackpkt->buf);
+      uint32_t seq = header->seq_number;
+      uint32_t ack = header->ack_number;
+
+      this->ReuseRxBuffer(ackpkt);
+
+      // check sequence number
+      if (seq != _ack) {
+        return Socket::kErrorAckFailure;
+      }
+
+      // check acknowledgement number
+      if (ack != _seq + 1) {
+        return Socket::kErrorAckFailure;
+      }
+
+      _state = TcpLayer::State::Closed;
+      _seq = 0;
+      _ack = 0;
+
+      return Socket::kReturnSuccess;
+    } else {
+      // failure
+      return Socket::kErrorNoRxPacket;
+    }
+  }
+
+  return Socket::kErrorUnknown;
 }
 
 
