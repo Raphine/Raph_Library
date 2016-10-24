@@ -51,9 +51,9 @@ void IntSpinLock::Lock() {
 
 void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
-  enable_interrupt(_did_stop_interrupt);
   _cpuid = CpuId();
   _flag++;
+  enable_interrupt(_did_stop_interrupt);
 }
 
 int IntSpinLock::Trylock() {
