@@ -89,7 +89,8 @@ public:
     // init callback functions
     ClassFunction<ProtocolStack> escalation_callback;
     escalation_callback.Init(this, &ProtocolStack::EscalationHandler, nullptr);
-    _buffered_queue.SetFunction(0, escalation_callback);
+    extern CpuId network_cpu;
+    _buffered_queue.SetFunction(network_cpu, escalation_callback);
 
     return true;
   }
@@ -106,7 +107,8 @@ public:
     // set callback function to network device
     ClassFunction<ProtocolStack> netdev_rx_callback;
     netdev_rx_callback.Init(this, &ProtocolStack::DeviceBufferHandler, nullptr);
-    _device->SetReceiveCallback(2, netdev_rx_callback);
+    extern CpuId pstack_cpu;
+    _device->SetReceiveCallback(pstack_cpu, netdev_rx_callback);
   }
 
   /**
@@ -237,7 +239,7 @@ public:
    * @param cpuid specifies the serving core.
    * @param func callback.
    */
-  virtual void SetReceiveCallback(int cpuid, const Function &func) {
+  virtual void SetReceiveCallback(CpuId cpuid, const Function &func) {
     _prev_layer->SetReceiveCallback(cpuid, func);
   }
 
@@ -429,7 +431,7 @@ public:
    * @param cpuid specifies the serving core.
    * @param func callback.
    */
-  void SetReceiveCallback(int cpuid, const Function &func) override {
+  void SetReceiveCallback(CpuId cpuid, const Function &func) override {
     _buffered_queue.SetFunction(cpuid, func);
   }
 

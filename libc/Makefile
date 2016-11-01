@@ -1,4 +1,4 @@
-OBJS = libc.o
+OBJS = libc.o libc_asm.o
 
 DEPS= $(filter %.d, $(subst .o,.d, $(OBJS)))
 

@@ -20,35 +20,11 @@
  * 
  */
 
-#ifndef __RAPH_KERNEL_RAPHQUEUE_H__
-#define __RAPH_KERNEL_RAPHQUEUE_H__
+#ifndef __RAPH_LIB_QUEUE_H__
+#define __RAPH_LIB_QUEUE_H__
 
 #include <functional.h>
-
-class Queue {
- public:
-  Queue() {
-    _last = &_first;
-    _first.data = nullptr;
-    _first.next = nullptr;
-  }
-  virtual ~Queue() {
-  }
-  void Push(void *data);
-  // 空の時はfalseが帰る
-  bool Pop(void *&data);
-  bool IsEmpty() {
-    return &_first == _last;
-  }
- private:
-  struct Container {
-    void *data;
-    Container *next;
-  };
-  Container _first;
-  Container *_last;
-  SpinLock _lock;
-};
+#include "_queue.h"
 
 class FunctionalQueue final : public Functional {
  public:
@@ -73,4 +49,52 @@ class FunctionalQueue final : public Functional {
   Queue _queue;
 };
 
-#endif // __RAPH_KERNEL_RAPHQUEUE_H__
+template <class T>
+class FunctionalQueue2 final : public Functional {
+ public:
+  FunctionalQueue2() {
+  }
+  ~FunctionalQueue2() {
+  }
+  void Push(T data) {
+    _queue.Push(data);
+    WakeupFunction();
+  }
+  bool Pop(T &data) {
+    return _queue.Pop(data);
+  }
+  bool IsEmpty() {
+    return _queue.IsEmpty();
+  }
+ private:
+  virtual bool ShouldFunc() override {
+    return !_queue.IsEmpty();
+  }
+  Queue2<T> _queue;
+};
+
+template <class T>
+class FunctionalIntQueue final : public Functional {
+ public:
+  FunctionalIntQueue() {
+  }
+  ~FunctionalIntQueue() {
+  }
+  void Push(T data) {
+    _queue.Push(data);
+    WakeupFunction();
+  }
+  bool Pop(T &data) {
+    return _queue.Pop(data);
+  }
+  bool IsEmpty() {
+    return _queue.IsEmpty();
+  }
+ private:
+  virtual bool ShouldFunc() override {
+    return !_queue.IsEmpty();
+  }
+  IntQueue<T> _queue;
+};
+
+#endif // __RAPH_LIB_QUEUE_H__

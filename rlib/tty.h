@@ -29,7 +29,6 @@
 #include <ctype.h>
 #include <spinlock.h>
 #include <queue.h>
-#include <task.h>
 #include <global.h>
 
 class Tty {
@@ -54,12 +53,7 @@ class Tty {
   };
   Tty() {
   }
-  void Init() {
-    Function func;
-    func.Init(Handle, reinterpret_cast<void *>(this));
-    //TODO cpuid
-    _queue.SetFunction(1, func);
-  }
+  void Init();
   void Cprintf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
@@ -275,17 +269,10 @@ class Tty {
     }
   } 
   void PrintString(String *str);
-  void DoString(String *str) {
-    // TODO cpuid
-    if (task_ctrl->GetState(1) != TaskCtrl::TaskQueueState::kNotStarted) {
-      _queue.Push(str);
-    } else {
-      Locker locker(_lock);
-      PrintString(str);
-    }
-  }
+  void DoString(String *str);
   FunctionalQueue _queue;
   IntSpinLock _lock;
+  CpuId _cpuid;
 };
 
 #ifndef __KERNEL__

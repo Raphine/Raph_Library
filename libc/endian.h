@@ -20,37 +20,21 @@
  * 
  */
 
-#include <queue.h>
-#include <global.h>
-#include <mem/virtmem.h>
-#include <raph.h>
+#ifndef __RAPH_LIB_ENDIAN_H__
+#define __RAPH_LIB_ENDIAN_H__
 
-void Queue::Push(void *data) {
-  Container *c = reinterpret_cast<Container *>(virtmem_ctrl->Alloc(sizeof(Container)));
-  c->data = data;
-  c->next = nullptr;
-  Locker locker(_lock);
-  kassert(_last->next == nullptr);
-  _last->next = c;
-  _last = c;
-}
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 
-bool Queue::Pop(void *&data) {
-  Container *c;
-  {
-    Locker locker(_lock);
-    if (IsEmpty()) {
-      return false;
-    }
-    c = _first.next;
-    kassert(c != nullptr);
-    _first.next = c->next;
-    if (_last == c) {
-      _last = &_first;
-    }
-  }
-  data = c->data;
-  virtmem_ctrl->Free(reinterpret_cast<virt_addr>(c));
-  return true;
-}
+#define htole16(x) (x)
+#define htole32(x) (x)
+#define htole64(x) (x)
 
+#define le16toh(x) (x)
+#define le32toh(x) (x)
+#define le64toh(x) (x)
+
+#else
+#error not supported
+#endif
+
+#endif /* __RAPH_LIB_ENDIAN_H__ */

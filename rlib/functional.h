@@ -27,7 +27,7 @@
 #include <task.h>
 #include <functional.h>
 #include <raph.h>
-#include <cpu.h>
+#include <_cpu.h>
 
 template<class L>
 class FunctionalBase {

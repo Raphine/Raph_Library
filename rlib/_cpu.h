@@ -16,41 +16,39 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
- * Author: Liva
+ * Author: Liva, hikalium
  * 
  */
 
-#include <queue.h>
+#ifndef __RAPH_LIB__CPU_H__
+#define __RAPH_LIB__CPU_H__
+
 #include <global.h>
-#include <mem/virtmem.h>
-#include <raph.h>
 
-void Queue::Push(void *data) {
-  Container *c = reinterpret_cast<Container *>(virtmem_ctrl->Alloc(sizeof(Container)));
-  c->data = data;
-  c->next = nullptr;
-  Locker locker(_lock);
-  kassert(_last->next == nullptr);
-  _last->next = c;
-  _last = c;
-}
-
-bool Queue::Pop(void *&data) {
-  Container *c;
-  {
-    Locker locker(_lock);
-    if (IsEmpty()) {
-      return false;
-    }
-    c = _first.next;
-    kassert(c != nullptr);
-    _first.next = c->next;
-    if (_last == c) {
-      _last = &_first;
-    }
+class CpuId {
+public:
+  static const int kCpuIdNotFound = -1;
+  static const int kCpuIdBootProcessor = 0;
+  CpuId() {
+    Init(kCpuIdNotFound);
   }
-  data = c->data;
-  virtmem_ctrl->Free(reinterpret_cast<virt_addr>(c));
-  return true;
-}
+  explicit CpuId(int newid) {
+    Init(newid);
+    CheckIfValid();
+  }
+  int GetRawId() {
+    CheckIfValid();
+    return _rawid;
+  }
+  uint8_t GetApicId();
+  bool IsValid();
+private:
+  void CheckIfValid();
+  int _rawid;
+  void Init(int newid) {
+    _rawid = newid;
+  }
+};
 
+
+#endif // __RAPH_LIB__CPU_H__

@@ -25,6 +25,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <libglobal.h>
 
 #ifdef __cplusplus
 template<class T>
@@ -63,14 +64,15 @@ extern "C" {
 #undef kassert
   
   void _kassert(const char *file, int line, const char *func)  __attribute__((noreturn));
-#define kassert(flag) if (!(flag)) { _kassert(__FILE__, __LINE__, __func__); }
+#define kassert(flag) if (!(flag)) { while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } _kassert(__FILE__, __LINE__, __func__); }
 
 #endif /* __KERNEL__ */
 
   
 #define MASK(val, ebit, sbit) ((val) & (((1 << ((ebit) - (sbit) + 1)) - 1) << (sbit)))
   
-  void kernel_panic(const char *class_name, const char *err_str);
+  void _kernel_panic(const char *class_name, const char *err_str);
+#define kernel_panic(...) do{ while(gtty == nullptr) { asm volatile("cli; nop; hlt;"); } _kernel_panic(__VA_ARGS__); }while(true)
 
   void checkpoint(int id, const char *str);
   void _checkpoint(const char *func, const int line);
@@ -105,6 +107,27 @@ extern "C" {
     __asm__ volatile("inl %%dx, %%eax;":"=a"(data):"d"(pin));
     return data;
   }
+
+#ifdef __KERNEL__
+  static inline bool disable_interrupt() {
+    uint64_t if_flag;
+    asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
+    bool did_stop_interrupt = (if_flag != 0);
+    asm volatile("cli;");
+    return did_stop_interrupt;
+  }
+  static inline void enable_interrupt(bool flag) {
+    if (flag) {
+      asm volatile("sti");
+    }
+  }
+#else
+  static inline bool disable_interrupt() {
+    return false;
+  }
+  static inline void enable_interrupt(bool flag) {
+  }
+#endif // __KERNEL__
 
 #ifdef __cplusplus
 }

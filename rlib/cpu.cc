@@ -23,38 +23,31 @@
 #ifdef __KERNEL__
 #include <apic.h>
 #include <global.h>
-
-//
-// CpuId
-//
-
-uint8_t CpuId::GetApicId() {
-  return apic_ctrl->GetApicIdFromCpuId(rawid);
-}
-bool CpuId::IsValid() {
-  return (rawid >= 0 && rawid < cpu_ctrl->GetHowManyCpus());
-}
+#include <cpu.h>
 
 //
 // CpuCtrl
 //
 
-inline CpuId CpuCtrl::GetCpuId()
-{
-  return apic_ctrl->GetCpuId();
-}
-inline int CpuCtrl::GetHowManyCpus()
-{
-  return apic_ctrl->GetHowManyCpus();
+
+void CpuCtrl::Init() {
+  _cpu_purpose_map = new CpuPurpose[apic_ctrl->GetHowManyCpus()];
+  _cpu_purpose_count = new int[apic_ctrl->GetHowManyCpus()];
+  for (int i = 0; i < apic_ctrl->GetHowManyCpus(); i++) {
+    if (i == 0) {
+      _cpu_purpose_map[0] = CpuPurpose::kLowPriority;
+    } else {
+      _cpu_purpose_map[i] = CpuPurpose::kNone;
+    }
+    _cpu_purpose_count[i] = 0;
+  }
+  _is_initialized = true;
 }
 
-CpuPurpose CpuCtrl::cpu_purpose_map[ApicCtrl::lapicMaxNumber];
-int CpuCtrl::cpu_purpose_count[ApicCtrl::lapicMaxNumber];
-
-inline CpuId CpuCtrl::RetainCpuIdForPurpose(CpuPurpose p) {
+CpuId CpuCtrl::RetainCpuIdForPurpose(CpuPurpose p) {
   // Returns valid CpuId all time.
   // boot processor is always assigned to kLowPriority
-  if(p == CpuPurpose::kLowPriority) return kCpuIdBootProcessor;
+  if(p == CpuPurpose::kLowPriority) return CpuId(CpuId::kCpuIdBootProcessor);
   int cpu_id;
   cpu_id = GetCpuIdNotAssigned();
   if(cpu_id != kCpuIdNotFound) {

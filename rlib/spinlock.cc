@@ -30,45 +30,6 @@
 #include <apic.h>
 #endif // __KERNEL__
 
-void SpinLock::Lock() {
-#ifdef __KERNEL__
-  kassert(idt->GetHandlingCnt() == 0);
-#endif // __KERNEL__
-  if ((_flag % 2) == 1) {
-    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
-  }
-  volatile unsigned int flag = GetFlag();
-  while((flag % 2) == 1 || !SetFlag(flag, flag + 1)) {
-    flag = GetFlag();
-  }
-  _cpuid = cpu_ctrl->GetCpuId();
-}
-
-void DebugSpinLock::Lock() {
-  kassert(_key == kKey);
-  if ((_flag % 2) == 1) {
-    kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
-  }
-  SpinLock::Lock();
-}
-
-void SpinLock::Unlock() {
-  kassert((_flag % 2) == 1);
-  CpuId not_found_id;
-  _cpuid = not_found_id;
-  _flag++;
-}
-
-int SpinLock::Trylock() {
-  volatile unsigned int flag = GetFlag();
-  if (((flag % 2) == 0) && SetFlag(flag, flag + 1)) {
-    return 0;
-  } else {
-    return -1;
-  }
-}
-
-#ifdef __KERNEL__
 void IntSpinLock::Lock() {
   if ((_flag % 2) == 1) {
     kassert(_cpuid.GetRawId() != cpu_ctrl->GetCpuId().GetRawId());
@@ -76,11 +37,12 @@ void IntSpinLock::Lock() {
   volatile unsigned int flag = GetFlag();
   while(true) {
     if ((flag % 2) != 1) {
-      this->DisableInt();
+      bool iflag = disable_interrupt();
       if (SetFlag(flag, flag + 1)) {
+        _did_stop_interrupt = iflag;
         break;
       }
-      this->EnableInt();
+      enable_interrupt(iflag);
     }
     flag = GetFlag();
   }
@@ -91,28 +53,18 @@ void IntSpinLock::Unlock() {
   kassert((_flag % 2) == 1);
   _cpuid = CpuId();
   _flag++;
-  this->EnableInt();
+  enable_interrupt(_did_stop_interrupt);
 }
 
 int IntSpinLock::Trylock() {
   volatile unsigned int flag = GetFlag();
+  bool iflag = disable_interrupt();
   if (((flag % 2) == 0) && SetFlag(flag, flag + 1)) {
+    _did_stop_interrupt = iflag;
     return 0;
   } else {
+    enable_interrupt(iflag);
     return -1;
   }
 }
 
-void IntSpinLock::DisableInt() {
-  uint64_t if_flag;
-  asm volatile("pushfq; popq %0; andq $0x200, %0;":"=r"(if_flag));
-  _did_stop_interrupt = (if_flag != 0);
-  asm volatile("cli;");
-}
-
-void IntSpinLock::EnableInt() {
-  if (_did_stop_interrupt) {
-    asm volatile("sti");
-  }
-}
-#endif // __KERNEL__

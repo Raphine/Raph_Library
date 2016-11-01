@@ -24,7 +24,7 @@
 #define __RAPH_KERNEL_SPINLOCK_H__
 
 #include <stdint.h>
-#include <cpu.h>
+#include <_cpu.h>
 
 class SpinLockInterface {
 public:
@@ -38,35 +38,9 @@ public:
   virtual bool IsLocked() = 0;
 };
 
-// 割り込みハンドラ内では使えないので注意
-class SpinLock : public SpinLockInterface { 
-public:
-  SpinLock() {}
-  virtual ~SpinLock() {}
-  virtual volatile unsigned int GetFlag() override {
-    return _flag;
-  }
-  virtual CpuId GetProcId() override {
-    return _cpuid;
-  }
-  virtual void Lock() override;
-  virtual void Unlock() override;
-  virtual int Trylock() override;
-  virtual bool IsLocked() override {
-    return ((_flag % 2) == 1);
-  }
-protected:
-  bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
-    return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
-  }
-  volatile unsigned int _flag = 0;
-  CpuId _cpuid;
-};
 
 #ifdef __KERNEL__
 // 割り込みハンドラ内でも使えるSpinLock
-// ロック確保時にI/O割り込みを禁止するため、可能ならSpinLockを使う事
-// また、例外処理中などは使えない
 class IntSpinLock : public SpinLockInterface {
 public:
   IntSpinLock() {}
@@ -87,37 +61,18 @@ protected:
   bool SetFlag(unsigned int old_flag, unsigned int new_flag) {
     return __sync_bool_compare_and_swap(&_flag, old_flag, new_flag);
   }
-  void DisableInt();
-  void EnableInt();
   volatile unsigned int _flag = 0;
   CpuId _cpuid;
   bool _did_stop_interrupt = false;
 };
-#else
-class IntSpinLock : public SpinLock {
-public:
-  IntSpinLock() {}
-  virtual ~IntSpinLock() {}
-};
-#endif // __KERNEL__
 
-class DebugSpinLock : public SpinLock {
-public:
-  DebugSpinLock() {
-    _key = kKey;
-  }
-  virtual ~DebugSpinLock() {}
-  virtual void Lock() override;
-private:
-  int _key;
-  static const int kKey = 0x13572468;
-};
+using SpinLock = IntSpinLock;
 
 // コンストラクタ、デストラクタでlock,unlockができるラッパー
 // 関数からreturnする際に必ずunlockできるので、unlock忘れを防止する
 class Locker {
  public:
- Locker(SpinLockInterface &lock) : _lock(lock) {
+  Locker(SpinLockInterface &lock) : _lock(lock) {
     _lock.Lock();
   }
   ~Locker() {
@@ -126,5 +81,7 @@ class Locker {
  private:
   SpinLockInterface &_lock;
 };
+
+#endif // __KERNEL__
 
 #endif // __RAPH_KERNEL_SPINLOCK_H__

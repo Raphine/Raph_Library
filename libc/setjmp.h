@@ -20,37 +20,22 @@
  * 
  */
 
-#include <queue.h>
-#include <global.h>
-#include <mem/virtmem.h>
-#include <raph.h>
+#ifndef __RAPH_LIBC_SETJMP_H__
+#define __RAPH_LIBC_SETJMP_H__
 
-void Queue::Push(void *data) {
-  Container *c = reinterpret_cast<Container *>(virtmem_ctrl->Alloc(sizeof(Container)));
-  c->data = data;
-  c->next = nullptr;
-  Locker locker(_lock);
-  kassert(_last->next == nullptr);
-  _last->next = c;
-  _last = c;
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+  typedef size_t jmp_buf[8];
+  
+  int setjmp(jmp_buf env);
+  int longjmp(jmp_buf env, int val);
+
+#ifdef __cplusplus
 }
+#endif /* __cplusplus */
 
-bool Queue::Pop(void *&data) {
-  Container *c;
-  {
-    Locker locker(_lock);
-    if (IsEmpty()) {
-      return false;
-    }
-    c = _first.next;
-    kassert(c != nullptr);
-    _first.next = c->next;
-    if (_last == c) {
-      _last = &_first;
-    }
-  }
-  data = c->data;
-  virtmem_ctrl->Free(reinterpret_cast<virt_addr>(c));
-  return true;
-}
-
+#endif // __RAPH_LIBC_SETJMP_H__
